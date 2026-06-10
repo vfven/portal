@@ -769,6 +769,33 @@ REQUEST_KEY=SDS-1234</code></div><p style="margin-top:12px;font-size:13px;color:
 
 <script>
 // ===============================================
+// GENERICAS
+// ===============================================
+async function enviarAlBackend(endpoint, datos, fbElement, resetFormCallback) {
+  try {
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(datos)
+    });
+    const result = await response.json();
+    if (result.success) {
+      let mensaje = `✅ Solicitud ${result.id} registrada.`;
+      if (result.jiraTicket) mensaje += ` Ticket Jira: ${result.jiraTicket}`;
+      fbElement.className = 'feedback success';
+      fbElement.innerHTML = mensaje;
+      if (resetFormCallback) resetFormCallback();
+      setTimeout(() => { fbElement.className = 'feedback'; fbElement.innerHTML = ''; }, 8000);
+    } else {
+      throw new Error(result.error || 'Error desconocido');
+    }
+  } catch (error) {
+    fbElement.className = 'feedback error';
+    fbElement.innerHTML = `❌ Error: ${error.message}`;
+    setTimeout(() => { fbElement.className = 'feedback'; }, 5000);
+  }
+}
+// ===============================================
 // SPA ROUTER
 // ===============================================
 const VIEWS = ['home','catalogo','herramientas','guias','plantillas','solicitar','autoservicio','despliegue'];
@@ -956,11 +983,11 @@ function quickFill(nombre, desc) {
   const nameInput = document.getElementById('sol-serviceName');
   const descInput = document.getElementById('sol-serviceDesc');
   const typeSelect = document.getElementById('sol-serviceType');
-  if(nameInput) nameInput.value = nombre;
-  if(descInput) descInput.value = desc;
-  if(typeSelect) typeSelect.value = 'herramienta';
+  if (nameInput) nameInput.value = nombre;
+  if (descInput) descInput.value = desc;
+  if (typeSelect) typeSelect.value = 'herramienta';
   const card = document.getElementById('sol-formCard');
-  if(card) { card.scrollIntoView({behavior:'smooth'}); card.style.boxShadow = '0 0 0 2px var(--secondary)'; setTimeout(()=>{ card.style.boxShadow = ''; }, 2000); }
+  if (card) { card.scrollIntoView({behavior:'smooth'}); card.style.boxShadow = '0 0 0 2px var(--secondary)'; setTimeout(()=>{ card.style.boxShadow = ''; }, 2000); }
 }
 function submitSolicitar() {
   const sType = document.getElementById('sol-serviceType').value;
@@ -968,16 +995,30 @@ function submitSolicitar() {
   const sDesc = document.getElementById('sol-serviceDesc').value.trim();
   const sEnv = document.getElementById('sol-targetEnv').value;
   const sTeam = document.getElementById('sol-team').value.trim() || 'No especificado';
+  const sSpecial = document.getElementById('sol-special').value.trim();
+  const email = sTeam.includes('@') ? sTeam : `${sTeam.replace(/\s/g, '')}@banco-base.com`; // ejemplo
+
   const fb = document.getElementById('sol-feedback');
   if (!sType || !sName || !sDesc) {
     fb.className='feedback error'; fb.innerHTML='Complete todos los campos obligatorios.';
-    setTimeout(()=>{fb.className='feedback';},3000); return;
+    setTimeout(()=>{fb.className='feedback';},3000);
+    return;
   }
-  const id = 'SRV-'+new Date().getFullYear()+'-'+Math.floor(Math.random()*9000+1000);
-  fb.className='feedback success';
-  fb.innerHTML=`✅ Solicitud ${id} registrada. ${sName} | ${sEnv.toUpperCase()} | ${sTeam}. Recibirás notificación por correo.`;
-  document.getElementById('sol-serviceForm').reset();
-  setTimeout(()=>{fb.className='feedback';},8000);
+
+  const datos = {
+    nombreServicio: sName,
+    tipoSolicitud: sType,
+    descripcion: sDesc,
+    ambiente: sEnv,
+    equipo: sTeam,
+    requisitosEspeciales: sSpecial,
+    email_solicitante: email,
+    fecha: new Date().toISOString()
+  };
+
+  enviarAlBackend('/api/solicitud-simple', datos, fb, () => {
+    document.getElementById('sol-serviceForm').reset();
+  });
 }
 
 // ===============================================
@@ -1022,13 +1063,22 @@ function openAutoModal(id) {
   document.getElementById('modalBody').innerHTML = html;
   document.getElementById('modalOverlay').classList.add('active');
   const form = document.getElementById('autForm');
-  form.addEventListener('submit', e => {
+  form.addEventListener('submit', async (e) => {
     e.preventDefault();
-    const reqId = 'SRV-' + new Date().getFullYear() + '-' + Math.floor(Math.random()*9000+1000);
+    const formData = new FormData(form);
+    const datos = {};
+    for (let [key, value] of formData.entries()) {
+      datos[key] = value;
+    }
+    datos.nombreServicio = s.nombre;
+    datos.fecha = new Date().toISOString();
+    datos.email_solicitante = formData.get('email') || 'anonimo@banco-base.com';
+  
     const fb = document.getElementById('aut-feedback');
-    fb.className = 'feedback success';
-    fb.innerHTML = `✅ <strong>${reqId}</strong> — Solicitud registrada: ${s.nombre}<br>⏱️ ${s.tiempo} aprox. — Recibirás notificación por correo.`;
-    setTimeout(() => { fb.className='feedback'; closeModal(); }, 4000);
+    await enviarAlBackend('/api/solicitud-simple', datos, fb, () => {
+      form.reset();
+      setTimeout(() => closeModal(), 3000);
+    });
   });
   document.body.style.overflow = 'hidden';
 }
@@ -1041,32 +1091,60 @@ document.addEventListener('keydown', e => { if(e.key==='Escape') { closeModal();
 // DESPLIEGUE
 // ===============================================
 function submitDeploy() {
-  const app   = document.getElementById('dep-application')?.value.trim();
-  const repo  = document.getElementById('dep-repo')?.value.trim();
-  const branch= document.getElementById('dep-branch')?.value.trim();
-  const env   = document.getElementById('dep-environment')?.value;
-  const sum   = document.getElementById('dep-summary')?.value.trim();
-  const fb    = document.getElementById('dep-feedback');
+  const app = document.getElementById('dep-application')?.value.trim();
+  const repo = document.getElementById('dep-repo')?.value.trim();
+  const branch = document.getElementById('dep-branch')?.value.trim();
+  const env = document.getElementById('dep-environment')?.value;
+  const sum = document.getElementById('dep-summary')?.value.trim();
+  const desc = document.getElementById('dep-description')?.value.trim();
+  const fb = document.getElementById('dep-feedback');
+
   if (!app || !repo || !branch || !sum) {
     if(fb) { fb.className='feedback error'; fb.innerHTML='❌ Completa todos los campos obligatorios.'; setTimeout(()=>{ fb.className='feedback'; },3000); }
     return;
   }
-  const key = 'SDS-' + Math.floor(Math.random()*9000+1000);
-  if(fb) {
-    fb.className='feedback success';
-    fb.innerHTML=`✅ Ticket creado: <strong>${key}</strong><br>📋 ${app} | ${repo} | ${branch} | ${env}<br>⏳ Pendiente de aprobación. Recibirás notificación por correo.`;
-  }
-  ['dep-application','dep-repo','dep-branch','dep-summary','dep-description'].forEach(id=>{ const el = document.getElementById(id); if(el) el.value=''; });
-  setTimeout(()=>{ if(fb) fb.className='feedback'; },8000);
+
+  const datos = {
+    nombreServicio: `Despliegue ${app}`,
+    aplicacion: app,
+    repositorio: repo,
+    rama: branch,
+    ambiente: env,
+    resumen: sum,
+    descripcion: desc || '',
+    email_solicitante: 'despliegue@banco-base.com',
+    fecha: new Date().toISOString()
+  };
+
+  enviarAlBackend('/api/solicitud-simple', datos, fb, () => {
+    ['dep-application','dep-repo','dep-branch','dep-summary','dep-description'].forEach(id => {
+      const el = document.getElementById(id); if(el) el.value = '';
+    });
+  });
 }
 function submitForm(fbId, formId) {
   const form = document.getElementById(formId);
   if (!form || !form.checkValidity()) { if(form) form.reportValidity(); return; }
-  const key = 'SRV-' + new Date().getFullYear() + '-' + Math.floor(Math.random()*9000+1000);
+
+  const tipo = document.getElementById('cat-requestType').value;
+  const nombre = document.getElementById('cat-serviceName').value.trim();
+  const descripcion = document.getElementById('cat-serviceDesc').value.trim();
+  const equipo = document.getElementById('cat-team').value.trim() || 'No especificado';
+  const email = equipo.includes('@') ? equipo : `${equipo.replace(/\s/g, '')}@banco-base.com`;
+
   const fb = document.getElementById(fbId);
-  if(fb) { fb.className='feedback success'; fb.innerHTML=`✅ <strong>${key}</strong> — Solicitud enviada correctamente.<br>⏱️ El equipo DevOps responderá en 2 horas hábiles.`; }
-  form.reset();
-  setTimeout(()=>{ if(fb) fb.className='feedback'; },6000);
+  const datos = {
+    nombreServicio: nombre,
+    tipoSolicitud: tipo,
+    descripcion: descripcion,
+    equipo: equipo,
+    email_solicitante: email,
+    fecha: new Date().toISOString()
+  };
+
+  enviarAlBackend('/api/solicitud-simple', datos, fb, () => {
+    form.reset();
+  });
 }
 
 // ===============================================
