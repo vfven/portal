@@ -1,0 +1,132 @@
+image: atlassian/default-image:3
+
+definitions:
+  services:
+    docker:
+      memory: 2048
+
+  steps:
+    # Steps para JIRA
+    - step: &jira-detect
+        name: Detectar claves JIRA
+        script:
+          - chmod +x ./scripts/jira/detect-jira-keys.sh
+          - ./scripts/jira/detect-jira-keys.sh
+
+    - step: &jira-comment
+        name: Comentar en JIRA
+        script:
+          - chmod +x ./scripts/jira/comment-jira.sh
+          - ./scripts/jira/comment-jira.sh "$JIRA_ISSUE_KEY" "$JIRA_COMMENT"
+
+    # Steps para Docker
+    - step: &build-image
+        name: Construir imagen Docker
+        services:
+          - docker
+        script:
+          - chmod +x ./scripts/docker/build-image.sh
+          - ./scripts/docker/build-image.sh
+
+    - step: &push-to-ecr
+        name: Subir imagen a ECR
+        services:
+          - docker
+        script:
+          - apt-get update && apt-get install -y python3-pip
+          - pip3 install awscli
+          - chmod +x ./scripts/docker/push-to-ecr.sh
+          - ./scripts/docker/push-to-ecr.sh
+
+    # Steps para Kubernetes (NUEVOS)
+    - step: &generate-manifests
+        name: Generar manifiestos Kubernetes
+        script:
+          - chmod +x ./scripts/kubernetes/generate-manifests.sh
+          - ./scripts/kubernetes/generate-manifests.sh
+        artifacts:
+          - kubernetes-manifests/generated/**
+
+    - step: &deploy-to-eks
+        name: Desplegar en EKS
+        deployment: production
+        script:
+          - chmod +x ./scripts/kubernetes/deploy-to-eks.sh
+          - ./scripts/kubernetes/deploy-to-eks.sh "$APP_NAME" "$DEPLOY_ENV" "$IMAGE_TAG"
+
+    - step: &deploy-to-rancher
+        name: Desplegar en Rancher
+        script:
+          - chmod +x ./scripts/kubernetes/deploy-to-rancher.sh
+          - ./scripts/kubernetes/deploy-to-rancher.sh "$APP_NAME" "$DEPLOY_ENV" "$IMAGE_TAG"
+
+    - step: &setup-kubernetes
+        name: Configurar Kubernetes
+        script:
+          - chmod +x ./scripts/utils/setup.sh
+          - ./scripts/utils/setup.sh
+
+pipelines:
+  # Pipeline automático para desarrollo
+  branches:
+    main:
+      - step: *jira-detect
+      - step: *build-image
+      - step: *push-to-ecr
+      - step: *generate-manifests
+      - step: *deploy-to-eks
+
+    develop:
+      - step: *jira-detect
+      - step: *build-image
+      - step: *generate-manifests
+      - step: *deploy-to-rancher
+
+  # Pipelines manuales
+  custom:
+    jira-pipeline:
+      - step: *jira-comment
+
+    docker-pipeline:
+      - step: *build-image
+      - step: *push-to-ecr
+
+    kubernetes-generate:
+      - step: *generate-manifests
+
+    eks-deploy:
+      - variables:
+          - name: APP_NAME
+            default: 'hola-mundo'
+          - name: DEPLOY_ENV
+            default: 'staging'
+          - name: IMAGE_TAG
+            default: '$BITBUCKET_BUILD_NUMBER'
+      - step: *generate-manifests
+      - step: *deploy-to-eks
+
+    rancher-deploy:
+      - variables:
+          - name: APP_NAME
+            default: 'hola-mundo'
+          - name: DEPLOY_ENV
+            default: 'development'
+          - name: IMAGE_TAG
+            default: 'latest'
+      - step: *generate-manifests
+      - step: *deploy-to-rancher
+
+    full-pipeline:
+      - step: *jira-detect
+      - step: *build-image
+      - step: *push-to-ecr
+      - step: *generate-manifests
+      - step: *deploy-to-eks
+      - step:
+          name: Notificar en JIRA
+          script:
+            - chmod +x ./scripts/jira/comment-jira.sh
+            - ./scripts/jira/comment-jira.sh "$APP_NAME" "Imagen construida y desplegada exitosamente en EKS"
+
+    setup-infra:
+      - step: *setup-kubernetes

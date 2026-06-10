@@ -1,0 +1,35 @@
+image: atlassian/default-image:3
+
+pipelines:
+  branches:
+    main:
+      - step:
+          name: Detectar y comentar en issues de JIRA
+          script:
+            - chmod +x ./scripts/check-jira-connection.sh
+            - chmod +x ./scripts/detect-jira-keys.sh
+            - chmod +x ./scripts/comment-jira.sh
+            - ./scripts/check-jira-connection.sh
+            - ./scripts/detect-jira-keys.sh
+
+  custom:
+    jira-comment:
+      - variables:
+          - name: JIRA_ISSUE_KEY
+            default: 'JD-179'
+          - name: JIRA_COMMENT
+            default: 'Comentario automático desde Bitbucket Pipeline'
+      - step:
+          name: Comentar manualmente en JIRA
+          script:
+            - chmod +x ./scripts/check-jira-connection.sh
+            - chmod +x ./scripts/comment-jira.sh
+            - ./scripts/check-jira-connection.sh
+            - ./scripts/comment-jira.sh "$JIRA_ISSUE_KEY" "$JIRA_COMMENT"
+
+    diagnose-jira:
+      - step:
+          name: Diagnóstico de conexión JIRA
+          script:
+            - chmod +x ./scripts/check-jira-connection.sh
+            - ./scripts/check-jira-connection.sh

@@ -1,0 +1,227 @@
+image: atlassian/default-image:3
+
+# =============================================================================
+# DEFINICIONES GLOBALES
+# =============================================================================
+definitions:
+  # Servicios disponibles para los pipelines
+  services:
+    docker:
+      memory: 2048  # Asigna 2GB de memoria al servicio Docker
+
+  # Variables globales para los scripts
+  variables:
+    - name: DEFAULT_APP_NAME
+      value: "mi-aplicacion"  # Nombre por defecto de la aplicación para pruebas
+    - name: DEFAULT_APP_PORT
+      value: "3000"  # Puerto por defecto para pruebas
+    - name: DEFAULT_ENVIRONMENT
+      value: "development"  # Entorno por defecto para pruebas
+
+  # YAML anchors para documentación y uso interno
+  yaml-anchors:
+    # Configura el entorno CI/CD
+    - &setup-environment
+        name: "🔧 Setup CI/CD Environment"
+        script:
+          # Configura permisos ejecutables para el script de setup
+          - chmod +x ./scripts/utils/setup.sh
+          # Ejecuta el script para configurar el entorno (instala dependencias, configura variables, etc.)
+          - ./scripts/utils/setup.sh
+
+    # Construye una imagen Docker
+    - &build-docker-image
+        name: "🐳 Build Docker Image"
+        services:
+          - docker  # Habilita el servicio Docker para construir imágenes
+        script:
+          # Configura permisos ejecutables para el script de construcción
+          - chmod +x ./scripts/docker/build-image.sh
+          # Construye una imagen Docker usando el script
+          - ./scripts/docker/build-image.sh
+        artifacts:
+          - docker-image-info.txt  # Guarda información de la imagen generada
+
+    # Pushea una imagen a AWS ECR
+    - &push-to-ecr
+        name: "📤 Push to AWS ECR"
+        services:
+          - docker  # Habilita el servicio Docker para pushear imágenes
+        script:
+          # Instala awscli para interactuar con AWS ECR
+          - apt-get update && apt-get install -y python3-pip
+          - pip3 install awscli
+          # Configura permisos ejecutables para el script de push
+          - chmod +x ./scripts/docker/push-to-ecr.sh
+          # Pushea la imagen Docker al repositorio ECR
+          - ./scripts/docker/push-to-ecr.sh
+        artifacts:
+          - ecr-push-info.txt  # Guarda información del push a ECR
+
+    # Detecta claves JIRA en mensajes de commit
+    - &detect-jira-keys
+        name: "🔍 Detect JIRA Keys in Commit"
+        script:
+          # Configura permisos ejecutables para el script de detección
+          - chmod +x ./scripts/jira/detect-jira-keys.sh
+          # Ejecuta el script para detectar claves JIRA en los mensajes de commit
+          - ./scripts/jira/detect-jira-keys.sh
+
+    # Comenta en una issue de JIRA
+    - &comment-jira
+        name: "💬 Comment on JIRA Issue"
+        script:
+          # Configura permisos ejecutables para el script de notificación
+          - chmod +x ./scripts/jira/comment-jira.sh
+          # Comenta en la issue de JIRA especificada
+          - ./scripts/jira/comment-jira.sh "$JIRA_ISSUE_KEY" "$JIRA_COMMENT"
+
+    # Genera manifiestos de Kubernetes
+    - &generate-k8s-manifests
+        name: "📋 Generate Kubernetes Manifests"
+        script:
+          # Configura permisos ejecutables para el script de generación
+          - chmod +x ./scripts/kubernetes/generate-manifests.sh
+          # Genera manifiestos de Kubernetes para el despliegue
+          - ./scripts/kubernetes/generate-manifests.sh
+        artifacts:
+          - kubernetes-manifests/**  # Guarda los manifiestos generados
+
+    # Despliega a AWS EKS
+    - &deploy-to-eks
+        name: "☸️ Deploy to AWS EKS"
+        script:
+          # Configura permisos ejecutables para el script de despliegue
+          - chmod +x ./scripts/kubernetes/deploy-to-eks.sh
+          # Despliega la aplicación en AWS EKS
+          - ./scripts/kubernetes/deploy-to-eks.sh "$APP_NAME" "$ENVIRONMENT" "$IMAGE_TAG"
+
+    # Despliega a Rancher
+    - &deploy-to-rancher
+        name: "🐄 Deploy to Rancher"
+        script:
+          # Configura permisos ejecutables para el script de despliegue
+          - chmod +x ./scripts/kubernetes/deploy-to-rancher.sh
+          # Despliega la aplicación en Rancher
+          - ./scripts/kubernetes/deploy-to-rancher.sh "$APP_NAME" "$ENVIRONMENT" "$IMAGE_TAG"
+
+    # Notifica el éxito del pipeline
+    - &notify-success
+        name: "✅ Notify Success"
+        script:
+          # Imprime un mensaje de éxito con detalles del despliegue
+          - echo "🚀 Deployment completed successfully!"
+          - echo "Application: $APP_NAME"
+          - echo "Environment: $ENVIRONMENT"
+          - echo "Image Tag: $IMAGE_TAG"
+          - echo "Timestamp: $(date)"
+
+    # Depura la disponibilidad de scripts
+    - &debug-scripts
+        name: "🐛 Debug Scripts Availability"
+        script:
+          # Lista todos los scripts disponibles en el repositorio
+          - echo "🔍 Available scripts in this repository:"
+          - find ./scripts -name "*.sh" -exec ls -la {} \;
+          # Confirma que los scripts son ejecutables
+          - echo "✅ All scripts are available and executable"
+
+# =============================================================================
+# PIPELINES PARA TESTEO INTERNO
+# =============================================================================
+pipelines:
+  # Pipeline por defecto para probar scripts básicos
+  default:
+    - step:
+        name: "🧪 Test CI/CD Scripts"
+        script:
+          # Configura permisos ejecutables para todos los scripts en el repositorio
+          - find ./scripts -name "*.sh" -exec chmod +x {} \;
+          # Ejecuta el script de setup para configurar el entorno
+          - ./scripts/utils/setup.sh
+          # Verifica que los scripts sean accesibles
+          - echo "🔍 Available scripts:"
+          - find ./scripts -name "*.sh" -exec ls -la {} \;
+          # Imprime mensaje de éxito
+          - echo "✅ All scripts are executable"
+
+  # Pipelines personalizados para pruebas específicas
+  custom:
+    # Prueba todos los scripts
+    test-all-scripts:
+      - step: *debug-scripts
+      - step:
+          name: "🧪 Test Docker Scripts"
+          services:
+            - docker  # Habilita el servicio Docker para pruebas
+          script:
+            # Configura variables de entorno para pruebas
+            - export APP_NAME="$DEFAULT_APP_NAME"
+            - export IMAGE_TAG="test-$(date +%s)"
+            # Prueba el script de construcción de Docker
+            - ./scripts/docker/build-image.sh
+            # Prueba el script de push a ECR (requiere awscli)
+            - apt-get update && apt-get install -y python3-pip
+            - pip3 install awscli
+            - ./scripts/docker/push-to-ecr.sh
+
+      - step:
+          name: "🧪 Test JIRA Scripts"
+          script:
+            # Configura variables para pruebas de JIRA
+            - export JIRA_ISSUE_KEY="TEST-123"
+            - export JIRA_COMMENT="Test comment from infra-cicd-tools"
+            # Prueba el script de detección de claves JIRA
+            - ./scripts/jira/detect-jira-keys.sh
+            # Prueba el script de comentario en JIRA
+            - ./scripts/jira/comment-jira.sh "$JIRA_ISSUE_KEY" "$JIRA_COMMENT"
+
+      - step:
+          name: "🧪 Test Kubernetes Scripts"
+          script:
+            # Configura variables de entorno para pruebas
+            - export APP_NAME="$DEFAULT_APP_NAME"
+            - export ENVIRONMENT="$DEFAULT_ENVIRONMENT"
+            - export IMAGE_TAG="test-$(date +%s)"
+            # Prueba el script de generación de manifiestos
+            - ./scripts/kubernetes/generate-manifests.sh
+            # Prueba el script de despliegue a EKS
+            - ./scripts/kubernetes/deploy-to-eks.sh "$APP_NAME" "$ENVIRONMENT" "$IMAGE_TAG"
+            # Prueba el script de despliegue a Rancher
+            - ./scripts/kubernetes/deploy-to-rancher.sh "$APP_NAME" "$ENVIRONMENT" "$IMAGE_TAG"
+
+    # Prueba específica para scripts de Docker
+    test-docker:
+      - step: *setup-environment
+      - step: *build-docker-image
+      - step: *push-to-ecr
+
+    # Prueba específica para scripts de JIRA
+    test-jira:
+      - step: *setup-environment
+      - step: *detect-jira-keys
+      - step: *comment-jira
+
+    # Prueba específica para scripts de Kubernetes
+    test-kubernetes:
+      - step: *setup-environment
+      - step: *generate-k8s-manifests
+      - step: *deploy-to-eks
+      - step: *deploy-to-rancher
+
+  # Pipeline para manejar releases versionadas
+  tags:
+    v*:
+      - step:
+          name: "🏷️ Create Versioned Release"
+          script:
+            # Imprime información sobre la tag de release
+            - echo "Creating versioned release $BITBUCKET_TAG"
+            # Crea un archivo VERSION.txt con detalles del release
+            - echo "Version $BITBUCKET_TAG" > VERSION.txt
+            - echo "Release date $(date)" >> VERSION.txt
+            - echo "Commit $BITBUCKET_COMMIT" >> VERSION.txt
+            # Muestra el contenido del archivo generado
+            - cat VERSION.txt
+          artifacts:
+            - VERSION.txt  # Guarda el archivo VERSION.txt como artefacto

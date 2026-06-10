@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ${APP_NAME}-config
+  namespace: ${NAMESPACE}
+data:
+  APP_ENV: ${DEPLOY_ENV}
+  LOG_LEVEL: ${LOG_LEVEL}
+  API_URL: ${API_URL}
