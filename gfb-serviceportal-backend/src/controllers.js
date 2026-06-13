@@ -3,6 +3,8 @@ const nodemailer = require('nodemailer');
 const crypto = require('crypto');
 const config = require('./config');
 
+// Verifica si el SMTP está configurado
+const isMailConfigured = config.SMTP_HOST && config.SMTP_USER && config.SMTP_PASS;
 // Configuración del transportador de correos (Nodemailer)
 const transporter = nodemailer.createTransport({
   host: config.SMTP_HOST,
@@ -176,22 +178,36 @@ exports.procesarSolicitudSimple = async (req, res) => {
     
     let cuerpoHtml = PLANTILLA_CORREO.replace('[[TABLA_DETALLES]]', tablaHtml).replace('[[SECCION_ADJUNTOS]]', '');
 
-    // Correo al equipo
-    await transporter.sendMail({
-      from: config.SMTP_USER || '"Portal DevOps" <no-reply@bancobase.com>',
-      to: config.CORREO_DESTINO,
-      subject: `[Autoservicio] ${datos.nombreServicio} - ${idSolicitud}`,
-      html: cuerpoHtml
-    });
+    // Correo al equipo (con manejo de errores)
+    if (isMailConfigured) {
+      try {
+        await transporter.sendMail({
+          from: config.SMTP_USER || '"Portal DevOps" <no-reply@bancobase.com>',
+          to: config.CORREO_DESTINO,
+          subject: `[Autoservicio] ${datos.nombreServicio} - ${idSolicitud}`,
+          html: cuerpoHtml
+        });
+      } catch (mailError) {
+        console.error(`❌ No se pudo enviar correo al equipo: ${mailError.message}`);
+      }
+    } else {
+      console.log("⚠️ SMTP no configurado. No se enviará correo al equipo.");
+    }
 
     // Copia al solicitante
-    if (datos.email_solicitante) {
-      await transporter.sendMail({
-        from: config.SMTP_USER || '"Portal DevOps" <no-reply@bancobase.com>',
-        to: datos.email_solicitante,
-        subject: `Confirmación: ${datos.nombreServicio} (${idSolicitud})`,
-        html: `<p>✅ Solicitud recibida. Número: <strong>${idSolicitud}</strong></p><p>Pronto te contactaremos el equipo DevOps de Banco BASE.</p>`
-      });
+    if (datos.email_solicitante && isMailConfigured) {
+      try {
+        await transporter.sendMail({
+          from: config.SMTP_USER || '"Portal DevOps" <no-reply@bancobase.com>',
+          to: datos.email_solicitante,
+          subject: `Confirmación: ${datos.nombreServicio} (${idSolicitud})`,
+          html: `<p>✅ Solicitud recibida. Número: <strong>${idSolicitud}</strong></p><p>Pronto te contactaremos el equipo DevOps de Banco BASE.</p>`
+        });
+      } catch (mailError) {
+        console.error(`❌ No se pudo enviar correo al solicitante ${datos.email_solicitante}: ${mailError.message}`);
+      }
+    } else if (!isMailConfigured) {
+      console.log("⚠️ SMTP no configurado. No se enviará copia al solicitante.");
     }
 
     // Ejecutar creación del Ticket en Jira
@@ -240,23 +256,35 @@ exports.procesarSolicitudVMCloud = async (req, res) => {
       content: tfContent
     };
 
-    // Correo al equipo con el archivo adjunto real en los arreglos de nodemailer
-    await transporter.sendMail({
-      from: config.SMTP_USER || '"Portal DevOps" <no-reply@bancobase.com>',
-      to: config.CORREO_DESTINO,
-      subject: `[Autoservicio] VM Cloud: ${datos.nombre_vm || ''} - ${idSolicitud}`,
-      html: cuerpoHtml,
-      attachments: [adjuntoTF]
-    });
+    // Correo al equipo con el archivo adjunto real en los arreglos de nodemailer (con manejo de errores)
+    if (isMailConfigured) {
+      try {
+        await transporter.sendMail({
+          from: config.SMTP_USER || '"Portal DevOps" <no-reply@bancobase.com>',
+          to: config.CORREO_DESTINO,
+          subject: `[Autoservicio] ${datos.nombreServicio} - ${idSolicitud}`,
+          html: cuerpoHtml
+        });
+      } catch (mailError) {
+        console.error(`❌ No se pudo enviar correo al equipo: ${mailError.message}`);
+      }
+    } else {
+      console.log("⚠️ SMTP no configurado. No se enviará correo al equipo.");
+    }
 
-    if (datos.email_solicitante) {
-      await transporter.sendMail({
-        from: config.SMTP_USER || '"Portal DevOps" <no-reply@bancobase.com>',
-        to: datos.email_solicitante,
-        subject: `Confirmación VM Cloud (${idSolicitud})`,
-        html: `<p>Tu solicitud de VM Cloud fue recibida. Número: <strong>${idSolicitud}</strong>. Adjuntamos tu archivo base de Terraform.</p>`,
-        attachments: [adjuntoTF]
-      });
+    if (datos.email_solicitante && isMailConfigured) {
+      try {
+        await transporter.sendMail({
+          from: config.SMTP_USER || '"Portal DevOps" <no-reply@bancobase.com>',
+          to: datos.email_solicitante,
+          subject: `Confirmación: ${datos.nombreServicio} (${idSolicitud})`,
+          html: `<p>✅ Solicitud recibida. Número: <strong>${idSolicitud}</strong></p><p>Pronto te contactaremos el equipo DevOps de Banco BASE.</p>`
+        });
+      } catch (mailError) {
+        console.error(`❌ No se pudo enviar correo al solicitante ${datos.email_solicitante}: ${mailError.message}`);
+      }
+    } else if (!isMailConfigured) {
+      console.log("⚠️ SMTP no configurado. No se enviará copia al solicitante.");
     }
 
     const jiraTicketKey = await crearTicketJiraAutoservicio(datos, idSolicitud);
