@@ -1,0 +1,57 @@
+# ═══════════════════════════════════════════════════
+# Docker Compose — DevOps Portal Banco BASE
+# Uso local: docker compose up
+# ═══════════════════════════════════════════════════
+
+services:
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: devops-portal-frontend
+    ports:
+      - "9100:80"
+    depends_on:
+      - backend
+    networks:
+      - portal-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: devops-portal-backend
+    ports:
+      - "3000:3000"   # solo para debug
+    environment:
+      - NODE_ENV=${NODE_ENV:-production}
+      - PORT=${PORT:-3000}
+      - CORREO_DESTINO=${CORREO_DESTINO}
+      - SMTP_HOST=${SMTP_HOST}
+      - SMTP_PORT=${SMTP_PORT}
+      - SMTP_USER=${SMTP_USER}
+      - SMTP_PASS=${SMTP_PASS}
+      - JIRA_DOMAIN=${JIRA_DOMAIN}
+      - JIRA_PROJECT_KEY=${JIRA_PROJECT_KEY}
+      - JIRA_USER_EMAIL=${JIRA_USER_EMAIL}
+      - JIRA_API_TOKEN=${JIRA_API_TOKEN}
+      - JIRA_TYPE_SOLICITUD=${JIRA_TYPE_SOLICITUD}
+    networks:
+      - portal-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+networks:
+  portal-network:
+    driver: bridge

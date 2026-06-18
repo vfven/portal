@@ -1,0 +1,59 @@
+# ═══════════════════════════════════════════════════
+# Docker Compose — DevOps Portal Banco BASE
+# Uso local: docker compose up
+# ═══════════════════════════════════════════════════
+#version: "3.8"
+
+services:
+
+  # ── Frontend (SPA nginx) ─────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: devops-portal-frontend
+    ports:
+      - "9100:80"          # accede en http://localhost:8080
+    depends_on:
+      - backend
+    networks:
+      - portal-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  # ── Backend (Node.js — lo conectarás con tus scripts) ──
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: devops-portal-backend
+    ports:
+      - "3000:3000"        # solo expuesto localmente para debug
+    environment:
+      - NODE_ENV=development
+      - PORT=3000
+      # Credenciales — en producción usa K8s Secrets
+      - JIRA_URL=https://bancobase.atlassian.net
+      - JIRA_EMAIL=digital@bancobase.com
+      - JIRA_TOKEN=ATATT3xFfGF0LP1aq6nrnR7CFOS9ERtLKarVbG_bZi1xdt92h3-4xHqzPoCwl39qVhipckUgT01aDaRawLLJ-EWEkUSJbo27g2Hs5dovPMVkUgnHhwga4cxGHRI6EBGo4rkeEuW3INY-u-PJh6JMDb7ATWDHJWzhENh9s-vA1e8adkgtQj3PzYc=B48C4011
+      - JENKINS_URL=http://jenkins.banco-base.com
+      - JENKINS_USER=CAMBIAR_USUARIO
+      - JENKINS_TOKEN=CAMBIAR_CONTRASEÑA
+      - BITBUCKET_URL=https://bitbucket.banco-base.com
+      - BITBUCKET_TOKEN=CAMBIAR_TOKEN
+    networks:
+      - portal-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+networks:
+  portal-network:
+    driver: bridge
