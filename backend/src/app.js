@@ -7,7 +7,8 @@ const config = require('./config');
 // ═══════════════════════════════════════════════════════════════════════════
 const autoservicioRoutes = require('./routes/autoservicio.routes');
 const herramientasRoutes = require('./routes/herramientas.routes');
-// Más adelante: solicitudesRoutes, despliegueRoutes
+const solicitudesRoutes = require('./routes/solicitudes.routes');
+// Más adelante: despliegueRoutes
 
 // ═══════════════════════════════════════════════════════════════════════════
 // INSTANCIA EXPRESS
@@ -41,8 +42,8 @@ app.use('/api/autoservicio', autoservicioRoutes);
 // HERRAMIENTAS — Acceso a Jenkins, Bitbucket, ArgoCD, K8s, SonarQube, Grafana, Harbor, Vault
 app.use('/api/herramientas', herramientasRoutes);
 
-// SOLICITUDES — Nuevas herramientas, contenedores, infraestructura (cuando esté listo)
-// app.use('/api/solicitudes', solicitudesRoutes);
+// SOLICITUDES GENERALES — Nueva herramienta, contenedor, infraestructura, automatización
+app.use('/api/solicitudes', solicitudesRoutes);
 
 // DESPLIEGUE — Despliegues en K8s On-Prem (cuando esté listo)
 // app.use('/api/despliegue', despliegueRoutes);
