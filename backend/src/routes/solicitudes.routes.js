@@ -1,26 +1,44 @@
+/**
+ * SOLICITUDES ROUTES
+ * Endpoints para solicitudes generales
+ * 
+ * POST /api/solicitudes/herramienta        → Nueva herramienta/plataforma
+ * POST /api/solicitudes/contenedor          → Contenedor/Docker
+ * POST /api/solicitudes/infraestructura     → Infraestructura (BD, almacenamiento, etc)
+ * POST /api/solicitudes/automatizacion      → Automatización/Pipelines
+ */
+
 const express = require('express');
 const router = express.Router();
 const {
   solicitarNuevaHerramienta,
   solicitarContenedor,
   solicitarInfraestructura,
-  solicitarAutomatizacion,
+  solicitarAutomatizacion
 } = require('../controllers/solicitudes.controller');
 
-// ═══════════════════════════════════════════════════════════════════════════
-// RUTAS PARA SOLICITUDES GENERALES
-// ═══════════════════════════════════════════════════════════════════════════
+/**
+ * POST /api/solicitudes/herramienta
+ * Solicitar nueva herramienta o plataforma
+ */
+router.post('/herramienta', solicitarNuevaHerramienta);
 
-// Nueva Herramienta / Plataforma
-router.post('/nueva-herramienta', solicitarNuevaHerramienta);
-
-// Contenedor / Imagen Docker personalizada
+/**
+ * POST /api/solicitudes/contenedor
+ * Solicitar nuevo contenedor Docker
+ */
 router.post('/contenedor', solicitarContenedor);
 
-// Infraestructura (BD, almacenamiento, LB, etc.)
+/**
+ * POST /api/solicitudes/infraestructura
+ * Solicitar infraestructura: base-datos, almacenamiento, load-balancer, networking
+ */
 router.post('/infraestructura', solicitarInfraestructura);
 
-// Automatización / Pipeline / Workflow
+/**
+ * POST /api/solicitudes/automatizacion
+ * Solicitar automatización: workflow-github, jenkins-pipeline, automation-script, webhook
+ */
 router.post('/automatizacion', solicitarAutomatizacion);
 
 module.exports = router;
