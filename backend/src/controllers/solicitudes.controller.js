@@ -1,292 +1,364 @@
+/**
+ * SOLICITUDES CONTROLLER
+ * Maneja solicitudes generales: herramientas, contenedores, infraestructura, automatización
+ * 
+ * Cada categoría tiene validación específica, detalles personalizados y labels Jira únicos
+ */
+
 const crypto = require('crypto');
 const {
-  enviarCorreoEquipo,
-  enviarCorreoSolicitante,
-  escapeHtml,
-} = require('../helpers/mail.helpers');
-const {
-  crearTicketJira,
-} = require('../helpers/jira.helpers');
+  validarNuevaHerramienta,
+  validarContenedor,
+  validarInfraestructura,
+  validarAutomatizacion,
+  construirDetallesHerramienta,
+  construirDetallesContenedor,
+  construirDetallesInfraestructura,
+  construirDetallesAutomatizacion,
+  procesarSolicitudGenerica
+} = require('../helpers/solicitudes.helpers');
 
-// ═══════════════════════════════════════════════════════════════════════════
-// UTILIDADES COMPARTIDAS
-// ═══════════════════════════════════════════════════════════════════════════
-
-function generarId() {
+/**
+ * Genera ID único para solicitudes: REQ-XXXXXXXX
+ */
+function generarIdSolicitud() {
   return 'REQ-' + crypto.randomBytes(4).toString('hex').toUpperCase();
 }
 
 /**
- * Valida los datos según el tipo de solicitud general.
- * Retorna { valido: boolean, errores: [] }
+ * CATEGORÍA 1: NUEVA HERRAMIENTA/PLATAFORMA
+ * POST /api/solicitudes/herramienta
+ * 
+ * Body: {
+ *   nombreHerramienta: "GitLab",
+ *   descripcion: "Sistema de control de versiones descentralizado",
+ *   razon: "Ampliar opciones de CI/CD",
+ *   enlaces: "https://gitlab.com",
+ *   presupuesto: "$5000 USD",
+ *   email_solicitante: "jperez@bancobase.com"
+ * }
  */
-function validarSolicitudGeneral(datos, tipoSolicitud) {
-  const errores = [];
+async function solicitarNuevaHerramienta(req, res) {
+  try {
+    const { 
+      nombreHerramienta, 
+      descripcion, 
+      razon, 
+      enlaces, 
+      presupuesto, 
+      email_solicitante 
+    } = req.body;
 
-  // Validaciones comunes
-  if (!datos.titulo || !datos.titulo.trim()) {
-    errores.push('Título de la solicitud requerido');
+    // Validar
+    const validacion = validarNuevaHerramienta({
+      nombreHerramienta,
+      descripcion,
+      razon,
+      email_solicitante
+    });
+
+    if (!validacion.valido) {
+      return res.status(400).json({
+        success: false,
+        error: 'Datos inválidos',
+        detalles: validacion.errores
+      });
+    }
+
+    // Generar ID
+    const idSolicitud = generarIdSolicitud();
+
+    // Construir detalles
+    const detalles = construirDetallesHerramienta({
+      nombreHerramienta,
+      descripcion,
+      razon,
+      enlaces,
+      presupuesto,
+      email_solicitante
+    });
+
+    // Procesar
+    const resultado = await procesarSolicitudGenerica(
+      detalles,
+      idSolicitud,
+      {
+        categoria: 'herramienta',
+        titulo: `Nueva Herramienta: ${nombreHerramienta}`,
+        detalles,
+        jiraLabels: ['herramienta', 'nueva-plataforma']
+      }
+    );
+
+    res.status(200).json(resultado);
+  } catch (error) {
+    console.error('Error en solicitarNuevaHerramienta:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Error al procesar solicitud',
+      detalles: [error.message]
+    });
   }
-  if (!datos.email_solicitante || !datos.email_solicitante.includes('@')) {
-    errores.push('Email válido requerido');
-  }
-  if (!datos.descripcion || !datos.descripcion.trim()) {
-    errores.push('Descripción requerida');
-  }
-
-  // Validaciones específicas por tipo
-  switch (tipoSolicitud) {
-    case 'herramienta':
-      if (!datos.nombre_herramienta || !datos.nombre_herramienta.trim())
-        errores.push('Nombre de la herramienta requerido');
-      if (!datos.caso_uso || !datos.caso_uso.trim())
-        errores.push('Caso de uso requerido');
-      break;
-
-    case 'contenedor':
-      if (!datos.nombre_imagen || !datos.nombre_imagen.trim())
-        errores.push('Nombre de la imagen requerido');
-      if (!datos.tecnologia || !datos.tecnologia.trim())
-        errores.push('Stack tecnológico requerido');
-      break;
-
-    case 'infraestructura':
-      if (!datos.tipo_recurso || !datos.tipo_recurso.trim())
-        errores.push('Tipo de recurso requerido (BD, almacenamiento, etc.)');
-      if (!datos.ambiente || !['dev', 'qa', 'stg', 'prod'].includes(datos.ambiente))
-        errores.push('Ambiente válido requerido (dev/qa/stg/prod)');
-      break;
-
-    case 'automatizacion':
-      if (!datos.nombre_workflow || !datos.nombre_workflow.trim())
-        errores.push('Nombre del workflow requerido');
-      if (!datos.trigger || !datos.trigger.trim())
-        errores.push('Trigger/evento requerido');
-      break;
-
-    default:
-      errores.push('Tipo de solicitud no reconocido');
-  }
-
-  return {
-    valido: errores.length === 0,
-    errores,
-  };
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// CONTROLLERS POR CATEGORÍA
-// ═══════════════════════════════════════════════════════════════════════════
-
 /**
- * NUEVA HERRAMIENTA / PLATAFORMA
- * Para solicitar herramientas nuevas (GitLab, DataDog, etc.)
+ * CATEGORÍA 2: CONTENEDOR/DOCKER
+ * POST /api/solicitudes/contenedor
  * 
- * Campos: titulo, nombre_herramienta, caso_uso, beneficios, presupuesto, descripcion, email_solicitante
+ * Body: {
+ *   nombreContenedor: "app-analytics",
+ *   baseImage: "node:18-alpine",
+ *   puertos: ["8080:8080/tcp", "9090:9090/tcp"],
+ *   volumenes: ["/data/logs", "/config"],
+ *   variables: ["NODE_ENV=production", "LOG_LEVEL=info"],
+ *   justificacion: "Necesario para nueva aplicación de análisis",
+ *   email_solicitante: "agarcia@bancobase.com"
+ * }
  */
-exports.solicitarNuevaHerramienta = async (req, res) => {
+async function solicitarContenedor(req, res) {
   try {
-    const datos = req.body;
-    const validacion = validarSolicitudGeneral(datos, 'herramienta');
+    const {
+      nombreContenedor,
+      baseImage,
+      puertos,
+      volumenes,
+      variables,
+      justificacion,
+      email_solicitante
+    } = req.body;
+
+    // Validar
+    const validacion = validarContenedor({
+      nombreContenedor,
+      baseImage,
+      puertos,
+      justificacion,
+      email_solicitante
+    });
 
     if (!validacion.valido) {
       return res.status(400).json({
         success: false,
         error: 'Datos inválidos',
-        detalles: validacion.errores,
+        detalles: validacion.errores
       });
     }
 
-    const idSolicitud = generarId();
+    // Generar ID
+    const idSolicitud = generarIdSolicitud();
 
-    // Sección especial con detalles de la herramienta
-    const seccionAdjuntos = `
-      <div style="background:#E6F0FA;border-left:4px solid #0052A5;border-radius:6px;padding:12px 16px;margin:16px 0;font-size:13px;color:#0052A5;">
-        🔧 <strong>Herramienta:</strong> ${escapeHtml(datos.nombre_herramienta)}<br>
-        💡 <strong>Caso de uso:</strong> ${escapeHtml(datos.caso_uso)}<br>
-        📈 <strong>Beneficios esperados:</strong> ${escapeHtml(datos.beneficios || 'No especificados')}<br>
-        💰 <strong>Presupuesto estimado:</strong> ${escapeHtml(datos.presupuesto || 'A definir')}
-      </div>`;
-
-    await enviarCorreoEquipo(datos, idSolicitud, {
-      subject: `[Nueva Herramienta] ${datos.nombre_herramienta} - ${idSolicitud}`,
-      seccionAdjuntos,
-    });
-    await enviarCorreoSolicitante(datos, idSolicitud);
-
-    const jiraKey = await crearTicketJira(datos, idSolicitud, {
-      tipoIssue: 'Nueva Herramienta',
-      labels: ['nueva-herramienta', 'evaluacion', datos.nombre_herramienta.toLowerCase().replace(/\s/g, '-')],
+    // Construir detalles
+    const detalles = construirDetallesContenedor({
+      nombreContenedor,
+      baseImage,
+      puertos,
+      volumenes,
+      variables,
+      justificacion,
+      email_solicitante
     });
 
-    return res.status(200).json({
-      success: true,
-      id: idSolicitud,
-      jiraTicket: jiraKey,
-      mensaje: `Solicitud de nueva herramienta ${datos.nombre_herramienta} enviada. ID: ${idSolicitud}`,
-    });
+    // Procesar
+    const resultado = await procesarSolicitudGenerica(
+      detalles,
+      idSolicitud,
+      {
+        categoria: 'contenedor',
+        titulo: `Nuevo Contenedor: ${nombreContenedor}`,
+        detalles,
+        jiraLabels: ['docker', 'contenedor', 'registry']
+      }
+    );
+
+    res.status(200).json(resultado);
   } catch (error) {
-    console.error(error);
-    return res.status(500).json({ success: false, error: error.message });
+    console.error('Error en solicitarContenedor:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Error al procesar solicitud',
+      detalles: [error.message]
+    });
   }
-};
+}
 
 /**
- * CONTENEDOR / IMAGEN DOCKER PERSONALIZADA
- * Para solicitar imágenes Docker customizadas o registros especiales
+ * CATEGORÍA 3: INFRAESTRUCTURA
+ * POST /api/solicitudes/infraestructura
  * 
- * Campos: titulo, nombre_imagen, tecnologia, base_image, dependencias, descripcion, email_solicitante
+ * Body: {
+ *   tipoInfraestructura: "base-datos",
+ *   descripcion: "PostgreSQL para aplicación de reportes",
+ *   especificaciones: "PostgreSQL 14, 4 vCPU, 16GB RAM, 500GB SSD",
+ *   ambiente: "prod",
+ *   dependencias: "VPC-Principal, Subnet-Privada",
+ *   timeline: "2 semanas",
+ *   email_solicitante: "mlopez@bancobase.com"
+ * }
  */
-exports.solicitarContenedor = async (req, res) => {
+async function solicitarInfraestructura(req, res) {
   try {
-    const datos = req.body;
-    const validacion = validarSolicitudGeneral(datos, 'contenedor');
+    const {
+      tipoInfraestructura,
+      descripcion,
+      especificaciones,
+      ambiente,
+      dependencias,
+      timeline,
+      email_solicitante
+    } = req.body;
+
+    // Validar
+    const validacion = validarInfraestructura({
+      tipoInfraestructura,
+      descripcion,
+      especificaciones,
+      ambiente,
+      email_solicitante
+    });
 
     if (!validacion.valido) {
       return res.status(400).json({
         success: false,
         error: 'Datos inválidos',
-        detalles: validacion.errores,
+        detalles: validacion.errores
       });
     }
 
-    const idSolicitud = generarId();
+    // Generar ID
+    const idSolicitud = generarIdSolicitud();
 
-    // Sección con especificaciones técnicas
-    const seccionAdjuntos = `
-      <div style="background:#FEF5E6;border-left:4px solid #C47D00;border-radius:6px;padding:12px 16px;margin:16px 0;font-size:13px;color:#C47D00;">
-        📦 <strong>Nombre Imagen:</strong> ${escapeHtml(datos.nombre_imagen)}<br>
-        💻 <strong>Stack Tecnológico:</strong> ${escapeHtml(datos.tecnologia)}<br>
-        🏗️ <strong>Imagen Base:</strong> ${escapeHtml(datos.base_image || 'Alpine/Ubuntu default')}<br>
-        📚 <strong>Dependencias:</strong> ${escapeHtml(datos.dependencias || 'A documentar')}
-      </div>`;
-
-    await enviarCorreoEquipo(datos, idSolicitud, {
-      subject: `[Contenedor] ${datos.nombre_imagen} - ${idSolicitud}`,
-      seccionAdjuntos,
-    });
-    await enviarCorreoSolicitante(datos, idSolicitud);
-
-    const jiraKey = await crearTicketJira(datos, idSolicitud, {
-      tipoIssue: 'Contenedor',
-      labels: ['contenedor', 'docker', datos.tecnologia.toLowerCase().replace(/\s/g, '-')],
+    // Construir detalles
+    const detalles = construirDetallesInfraestructura({
+      tipoInfraestructura,
+      descripcion,
+      especificaciones,
+      ambiente,
+      dependencias,
+      timeline,
+      email_solicitante
     });
 
-    return res.status(200).json({
-      success: true,
-      id: idSolicitud,
-      jiraTicket: jiraKey,
-      mensaje: `Solicitud de contenedor ${datos.nombre_imagen} enviada. ID: ${idSolicitud}`,
-    });
+    // Labels dinámicos según tipo
+    const labelsAdicionales = {
+      'base-datos': ['database', 'sql'],
+      'almacenamiento': ['storage', 's3'],
+      'load-balancer': ['networking', 'alb'],
+      'networking': ['network', 'infrastructure']
+    };
+
+    // Procesar
+    const resultado = await procesarSolicitudGenerica(
+      detalles,
+      idSolicitud,
+      {
+        categoria: 'infraestructura',
+        titulo: `Nueva Infraestructura: ${tipoInfraestructura}`,
+        detalles,
+        jiraLabels: ['infraestructura', ...(labelsAdicionales[tipoInfraestructura] || [])]
+      }
+    );
+
+    res.status(200).json(resultado);
   } catch (error) {
-    console.error(error);
-    return res.status(500).json({ success: false, error: error.message });
+    console.error('Error en solicitarInfraestructura:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Error al procesar solicitud',
+      detalles: [error.message]
+    });
   }
-};
+}
 
 /**
- * INFRAESTRUCTURA (BD, Almacenamiento, Load Balancers, etc.)
- * Para provisioning de recursos de infraestructura
+ * CATEGORÍA 4: AUTOMATIZACIÓN/PIPELINE
+ * POST /api/solicitudes/automatizacion
  * 
- * Campos: titulo, tipo_recurso, ambiente, especificaciones, sla_requerido, backup, descripcion, email_solicitante
+ * Body: {
+ *   nombrePipeline: "deploy-staging-nightly",
+ *   tipo: "jenkins-pipeline",
+ *   descripcion: "Despliegue automático a staging cada noche",
+ *   triggers: ["schedule", "webhook"],
+ *   etapas: ["build", "test", "deploy", "smoke-tests"],
+ *   documentacion: "https://wiki.bancobase.com/...",
+ *   email_solicitante: "devops@bancobase.com"
+ * }
  */
-exports.solicitarInfraestructura = async (req, res) => {
+async function solicitarAutomatizacion(req, res) {
   try {
-    const datos = req.body;
-    const validacion = validarSolicitudGeneral(datos, 'infraestructura');
+    const {
+      nombrePipeline,
+      tipo,
+      descripcion,
+      triggers,
+      etapas,
+      documentacion,
+      email_solicitante
+    } = req.body;
+
+    // Validar
+    const validacion = validarAutomatizacion({
+      nombrePipeline,
+      tipo,
+      descripcion,
+      email_solicitante
+    });
 
     if (!validacion.valido) {
       return res.status(400).json({
         success: false,
         error: 'Datos inválidos',
-        detalles: validacion.errores,
+        detalles: validacion.errores
       });
     }
 
-    const idSolicitud = generarId();
+    // Generar ID
+    const idSolicitud = generarIdSolicitud();
 
-    // Sección con especificaciones de infraestructura
-    const seccionAdjuntos = `
-      <div style="background:#EDE9FE;border-left:4px solid #5B21B6;border-radius:6px;padding:12px 16px;margin:16px 0;font-size:13px;color:#5B21B6;">
-        🏢 <strong>Tipo de Recurso:</strong> ${escapeHtml(datos.tipo_recurso)}<br>
-        🌍 <strong>Ambiente:</strong> ${escapeHtml(datos.ambiente.toUpperCase())}<br>
-        ⚙️ <strong>Especificaciones:</strong> ${escapeHtml(datos.especificaciones || 'A definir')}<br>
-        📊 <strong>SLA Requerido:</strong> ${escapeHtml(datos.sla_requerido || '99.5%')}<br>
-        💾 <strong>Backup/Replicación:</strong> ${escapeHtml(datos.backup || 'Estándar')}
-      </div>`;
-
-    await enviarCorreoEquipo(datos, idSolicitud, {
-      subject: `[Infraestructura] ${datos.tipo_recurso} en ${datos.ambiente.toUpperCase()} - ${idSolicitud}`,
-      seccionAdjuntos,
-    });
-    await enviarCorreoSolicitante(datos, idSolicitud);
-
-    const jiraKey = await crearTicketJira(datos, idSolicitud, {
-      tipoIssue: 'Infraestructura',
-      labels: ['infraestructura', datos.tipo_recurso.toLowerCase().replace(/\s/g, '-'), datos.ambiente],
+    // Construir detalles
+    const detalles = construirDetallesAutomatizacion({
+      nombrePipeline,
+      tipo,
+      descripcion,
+      triggers,
+      etapas,
+      documentacion,
+      email_solicitante
     });
 
-    return res.status(200).json({
-      success: true,
-      id: idSolicitud,
-      jiraTicket: jiraKey,
-      mensaje: `Solicitud de infraestructura (${datos.tipo_recurso}) enviada. ID: ${idSolicitud}`,
-    });
+    // Labels dinámicos según tipo
+    const labelsAdicionales = {
+      'workflow-github': ['github', 'actions'],
+      'jenkins-pipeline': ['jenkins', 'groovy'],
+      'automation-script': ['automation', 'scripting'],
+      'webhook': ['webhook', 'integration']
+    };
+
+    // Procesar
+    const resultado = await procesarSolicitudGenerica(
+      detalles,
+      idSolicitud,
+      {
+        categoria: 'automatización',
+        titulo: `Nuevo Pipeline: ${nombrePipeline}`,
+        detalles,
+        jiraLabels: ['automatizacion', 'pipeline', ...(labelsAdicionales[tipo] || [])]
+      }
+    );
+
+    res.status(200).json(resultado);
   } catch (error) {
-    console.error(error);
-    return res.status(500).json({ success: false, error: error.message });
+    console.error('Error en solicitarAutomatizacion:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Error al procesar solicitud',
+      detalles: [error.message]
+    });
   }
-};
+}
 
-/**
- * AUTOMATIZACIÓN / PIPELINE / WORKFLOW
- * Para crear workflows, pipelines custom o scripts automatizados
- * 
- * Campos: titulo, nombre_workflow, trigger, acciones, frecuencia, descripcion, email_solicitante
- */
-exports.solicitarAutomatizacion = async (req, res) => {
-  try {
-    const datos = req.body;
-    const validacion = validarSolicitudGeneral(datos, 'automatizacion');
-
-    if (!validacion.valido) {
-      return res.status(400).json({
-        success: false,
-        error: 'Datos inválidos',
-        detalles: validacion.errores,
-      });
-    }
-
-    const idSolicitud = generarId();
-
-    // Sección con detalles del workflow
-    const seccionAdjuntos = `
-      <div style="background:#E6F4EA;border-left:4px solid #1E7B48;border-radius:6px;padding:12px 16px;margin:16px 0;font-size:13px;color:#1E7B48;">
-        ⚡ <strong>Nombre del Workflow:</strong> ${escapeHtml(datos.nombre_workflow)}<br>
-        🔔 <strong>Trigger/Evento:</strong> ${escapeHtml(datos.trigger)}<br>
-        📋 <strong>Acciones:</strong> ${escapeHtml(datos.acciones || 'A definir')}<br>
-        🕐 <strong>Frecuencia:</strong> ${escapeHtml(datos.frecuencia || 'Event-triggered')}
-      </div>`;
-
-    await enviarCorreoEquipo(datos, idSolicitud, {
-      subject: `[Automatización] ${datos.nombre_workflow} - ${idSolicitud}`,
-      seccionAdjuntos,
-    });
-    await enviarCorreoSolicitante(datos, idSolicitud);
-
-    const jiraKey = await crearTicketJira(datos, idSolicitud, {
-      tipoIssue: 'Automatización',
-      labels: ['automatizacion', 'workflow', 'pipeline', datos.trigger.toLowerCase().replace(/\s/g, '-')],
-    });
-
-    return res.status(200).json({
-      success: true,
-      id: idSolicitud,
-      jiraTicket: jiraKey,
-      mensaje: `Solicitud de automatización (${datos.nombre_workflow}) enviada. ID: ${idSolicitud}`,
-    });
-  } catch (error) {
-    console.error(error);
-    return res.status(500).json({ success: false, error: error.message });
-  }
+module.exports = {
+  solicitarNuevaHerramienta,
+  solicitarContenedor,
+  solicitarInfraestructura,
+  solicitarAutomatizacion
 };
