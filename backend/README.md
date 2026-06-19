@@ -542,3 +542,781 @@ curl -X POST http://localhost:9100/api/herramientas/jenkins/acceso \
 **Versión:** 1.0.0  
 **Última actualización:** Junio 2026  
 **Banco BASE — DevOps Platform Engineering**
+
+
+# 📋 PASO 2: SOLICITUDES GENERALES — DevOps Portal Backend
+
+## 🎯 Estructura General
+
+```
+backend/src/
+├── controllers/
+│   └── solicitudes.controller.js     ✅ NUEVO (4 controllers)
+├── routes/
+│   └── solicitudes.routes.js         ✅ NUEVO (4 rutas)
+└── app.js                            ✅ ACTUALIZADO (importa solicitudes)
+```
+
+---
+
+## 📡 4 NUEVOS ENDPOINTS
+
+### 1️⃣ Nueva Herramienta / Plataforma
+```
+POST /api/solicitudes/nueva-herramienta
+```
+
+**Para solicitar:**
+- GitLab, DataDog, NewRelic, ELK Stack, etc.
+- Herramientas nuevas que no están en catálogo
+
+**Campos requeridos:**
+```javascript
+{
+  "titulo": "Solicitud GitLab CI",
+  "nombre_herramienta": "GitLab",
+  "caso_uso": "Reemplazar Bitbucket para CI/CD",
+  "beneficios": "Mejor integración con K8s, mejor performance",
+  "presupuesto": "$5000/año",
+  "descripcion": "Necesitamos GitLab para...",
+  "email_solicitante": "jperez@bancobase.com"
+}
+```
+
+---
+
+### 2️⃣ Contenedor / Imagen Docker
+```
+POST /api/solicitudes/contenedor
+```
+
+**Para solicitar:**
+- Imágenes Docker personalizadas
+- Contenedores especializados con dependencias custom
+
+**Campos requeridos:**
+```javascript
+{
+  "titulo": "Contenedor Node.js Custom",
+  "nombre_imagen": "my-app-node-dev",
+  "tecnologia": "Node.js 18 + PostgreSQL 15",
+  "base_image": "node:18-alpine",
+  "dependencias": "pm2, redis-cli, curl, wget",
+  "descripcion": "Imagen con todas las herramientas para dev...",
+  "email_solicitante": "jperez@bancobase.com"
+}
+```
+
+---
+
+### 3️⃣ Infraestructura
+```
+POST /api/solicitudes/infraestructura
+```
+
+**Para solicitar:**
+- Bases de datos (PostgreSQL, MongoDB, MySQL)
+- Almacenamiento (S3, NFS, EBS)
+- Load Balancers
+- Cachés (Redis, Memcached)
+
+**Campos requeridos:**
+```javascript
+{
+  "titulo": "PostgreSQL para Pagos",
+  "tipo_recurso": "Base de Datos PostgreSQL",
+  "ambiente": "prod",
+  "especificaciones": "16GB RAM, 500GB SSD, Multi-AZ",
+  "sla_requerido": "99.99%",
+  "backup": "Daily automated, 30 days retention",
+  "descripcion": "BD para la aplicación de pagos...",
+  "email_solicitante": "jperez@bancobase.com"
+}
+```
+
+---
+
+### 4️⃣ Automatización / Pipeline / Workflow
+```
+POST /api/solicitudes/automatizacion
+```
+
+**Para solicitar:**
+- Workflows custom
+- Pipelines especiales
+- Scripts automatizados
+- Integraciones complejas
+
+**Campos requeridos:**
+```javascript
+{
+  "titulo": "Workflow Backup Automático",
+  "nombre_workflow": "Daily Database Backup to S3",
+  "trigger": "Cron job (2 AM UTC)",
+  "acciones": "Backup DB, compress, upload to S3, verify checksum, notify team",
+  "frecuencia": "Diario",
+  "descripcion": "Necesitamos automatizar backups de...",
+  "email_solicitante": "jperez@bancobase.com"
+}
+```
+
+---
+
+## 📊 Validaciones Incluidas
+
+### Nueva Herramienta ✓
+- Título requerido
+- Nombre de herramienta requerido
+- Caso de uso requerido
+- Descripción requerida
+- Email válido
+
+### Contenedor ✓
+- Título requerido
+- Nombre de imagen requerido
+- Tecnología requerida
+- Descripción requerida
+- Email válido
+
+### Infraestructura ✓
+- Título requerido
+- Tipo de recurso requerido
+- Ambiente válido (dev/qa/stg/prod)
+- Descripción requerida
+- Email válido
+
+### Automatización ✓
+- Título requerido
+- Nombre de workflow requerido
+- Trigger/evento requerido
+- Descripción requerida
+- Email válido
+
+---
+
+## ✨ Características Automáticas
+
+Cada endpoint incluye:
+
+✅ **ID único** → `REQ-XXXXXXXX`
+
+✅ **Correos automáticos:**
+   - Al equipo (con detalles específicos por categoría)
+   - Confirmación al solicitante
+
+✅ **Tickets Jira** → `BSJ-XXXXX` con ADF
+
+✅ **Validación de campos** → Retorna errores específicos (400)
+
+✅ **Respuesta JSON:**
+   ```json
+   {
+     "success": true,
+     "id": "REQ-XXXXXXXX",
+     "jiraTicket": "BSJ-12345",
+     "mensaje": "Solicitud de nueva herramienta GitLab enviada..."
+   }
+   ```
+
+---
+
+## 📡 Ejemplos cURL
+
+### Nueva Herramienta
+```bash
+curl -X POST http://localhost:9100/api/solicitudes/nueva-herramienta \
+  -H "Content-Type: application/json" \
+  -d '{
+    "titulo": "Solicitud GitLab CI",
+    "nombre_herramienta": "GitLab",
+    "caso_uso": "Reemplazar Bitbucket para CI/CD",
+    "beneficios": "Mejor integración con K8s",
+    "presupuesto": "$5000/año",
+    "descripcion": "Necesitamos GitLab porque...",
+    "email_solicitante": "jperez@bancobase.com"
+  }'
+```
+
+### Contenedor
+```bash
+curl -X POST http://localhost:9100/api/solicitudes/contenedor \
+  -H "Content-Type: application/json" \
+  -d '{
+    "titulo": "Contenedor Node.js Custom",
+    "nombre_imagen": "my-app-node",
+    "tecnologia": "Node.js 18 + PostgreSQL",
+    "base_image": "node:18-alpine",
+    "dependencias": "pm2, redis-cli, curl",
+    "descripcion": "Imagen custom para dev...",
+    "email_solicitante": "jperez@bancobase.com"
+  }'
+```
+
+### Infraestructura
+```bash
+curl -X POST http://localhost:9100/api/solicitudes/infraestructura \
+  -H "Content-Type: application/json" \
+  -d '{
+    "titulo": "PostgreSQL para Pagos",
+    "tipo_recurso": "Base de Datos PostgreSQL",
+    "ambiente": "prod",
+    "especificaciones": "16GB RAM, 500GB SSD, Multi-AZ",
+    "sla_requerido": "99.99%",
+    "backup": "Daily automated, 30 days",
+    "descripcion": "BD para pagos...",
+    "email_solicitante": "jperez@bancobase.com"
+  }'
+```
+
+### Automatización
+```bash
+curl -X POST http://localhost:9100/api/solicitudes/automatizacion \
+  -H "Content-Type: application/json" \
+  -d '{
+    "titulo": "Backup Automático",
+    "nombre_workflow": "Daily DB Backup",
+    "trigger": "Cron 2 AM UTC",
+    "acciones": "Backup, compress, upload S3, verify, notify",
+    "frecuencia": "Diario",
+    "descripcion": "Necesitamos automatizar backups...",
+    "email_solicitante": "jperez@bancobase.com"
+  }'
+```
+
+---
+
+## 🚀 Pasos para Implementar PASO 2
+
+### 1. Copiar nuevos archivos
+```bash
+cp solicitudes.controller.js backend/src/controllers/
+cp solicitudes.routes.js backend/src/routes/
+cp app_paso2.js backend/src/app.js  # reemplaza el app.js anterior
+```
+
+### 2. Verificar estructura
+```bash
+tree backend/src/ -L 2
+```
+
+Debe verse así:
+```
+backend/src/
+├── app.js                          ✅ (actualizado)
+├── config.js                       ✅ (sin cambios)
+├── controllers/
+│   ├── autoservicio.controller.js  ✅
+│   ├── herramientas.controller.js  ✅
+│   └── solicitudes.controller.js   ✅ NUEVO
+├── helpers/
+│   ├── jira.helpers.js             ✅
+│   └── mail.helpers.js             ✅
+└── routes/
+    ├── autoservicio.routes.js      ✅
+    ├── herramientas.routes.js      ✅
+    └── solicitudes.routes.js       ✅ NUEVO
+```
+
+### 3. Reiniciar el backend
+```bash
+docker compose restart backend
+# o si está corriendo local:
+npm start
+```
+
+### 4. Probar nuevos endpoints
+```bash
+# Probar una solicitud de nueva herramienta
+curl -X POST http://localhost:9100/api/solicitudes/nueva-herramienta \
+  -H "Content-Type: application/json" \
+  -d '{
+    "titulo": "Test",
+    "nombre_herramienta": "Test Tool",
+    "caso_uso": "Testing",
+    "beneficios": "Good benefits",
+    "presupuesto": "$1000",
+    "descripcion": "Test description",
+    "email_solicitante": "test@bancobase.com"
+  }'
+```
+
+---
+
+## 📊 Total de Endpoints (PASO 1 + PASO 2)
+
+### PASO 1: Herramientas (11 endpoints)
+- 3 Autoservicio
+- 8 Herramientas
+
+### PASO 2: Solicitudes Generales (4 endpoints) ✅ NUEVO
+- 1 Nueva Herramienta
+- 1 Contenedor
+- 1 Infraestructura
+- 1 Automatización
+
+**TOTAL: 15 endpoints listos**
+
+---
+
+## 🔄 Flujo de Solicitud Típica (Nueva Herramienta)
+
+```
+Usuario rellena formulario "Solicitar GitLab"
+              ↓
+POST /api/solicitudes/nueva-herramienta
+              ↓
+solicitudes.controller.js valida ✓
+              ↓
+Genera REQ-A1B2C3D4
+              ↓
+Envía:
+  - Correo a CORREO_DESTINO (con detalles)
+  - Confirmación a solicitante
+  - Ticket BSJ-12345 en Jira
+              ↓
+JSON response { success: true, id, jiraTicket }
+              ↓
+SPA muestra confirmación al usuario
+              ↓
+Equipo DevOps:
+  - Recibe email
+  - Abre Jira
+  - Evalúa herramienta
+  - Comenta avances en Jira
+  - Usuario notificado automáticamente
+```
+
+---
+
+## 📌 Validación de Campos
+
+Si faltan campos → Error 400:
+```json
+{
+  "success": false,
+  "error": "Datos inválidos",
+  "detalles": [
+    "Título de la solicitud requerido",
+    "Nombre de la herramienta requerido",
+    "Email válido requerido"
+  ]
+}
+```
+
+---
+
+## ✅ Checklist PASO 2
+
+- [ ] Copié `solicitudes.controller.js`
+- [ ] Copié `solicitudes.routes.js`
+- [ ] Reemplacé `app.js` con `app_paso2.js`
+- [ ] Reinicié backend
+- [ ] Probé `/api/solicitudes/nueva-herramienta`
+- [ ] Probé `/api/solicitudes/contenedor`
+- [ ] Probé `/api/solicitudes/infraestructura`
+- [ ] Probé `/api/solicitudes/automatizacion`
+- [ ] Recibí emails en CORREO_DESTINO
+- [ ] Se crearon tickets en Jira
+
+---
+
+## 📧 Próximo Paso
+
+Cuando los 4 endpoints estén funcionando:
+
+**"PASO 2 completado. Los 4 endpoints de solicitudes generales están funcionando. Listo para PASO 3: DESPLIEGUE ON-PREM"**
+
+---
+
+**Banco BASE — DevOps Platform Engineering**  
+Junio 2026
+EOF
+cat /mnt/user-data/outputs/PASO2_SOLICITUDES_GENERALES.md
+Salida
+
+# 📋 PASO 2: SOLICITUDES GENERALES — DevOps Portal Backend
+
+## 🎯 Estructura General
+
+```
+backend/src/
+├── controllers/
+│   └── solicitudes.controller.js     ✅ NUEVO (4 controllers)
+├── routes/
+│   └── solicitudes.routes.js         ✅ NUEVO (4 rutas)
+└── app.js                            ✅ ACTUALIZADO (importa solicitudes)
+```
+
+---
+
+## 📡 4 NUEVOS ENDPOINTS
+
+### 1️⃣ Nueva Herramienta / Plataforma
+```
+POST /api/solicitudes/nueva-herramienta
+```
+
+**Para solicitar:**
+- GitLab, DataDog, NewRelic, ELK Stack, etc.
+- Herramientas nuevas que no están en catálogo
+
+**Campos requeridos:**
+```javascript
+{
+  "titulo": "Solicitud GitLab CI",
+  "nombre_herramienta": "GitLab",
+  "caso_uso": "Reemplazar Bitbucket para CI/CD",
+  "beneficios": "Mejor integración con K8s, mejor performance",
+  "presupuesto": "$5000/año",
+  "descripcion": "Necesitamos GitLab para...",
+  "email_solicitante": "jperez@bancobase.com"
+}
+```
+
+---
+
+### 2️⃣ Contenedor / Imagen Docker
+```
+POST /api/solicitudes/contenedor
+```
+
+**Para solicitar:**
+- Imágenes Docker personalizadas
+- Contenedores especializados con dependencias custom
+
+**Campos requeridos:**
+```javascript
+{
+  "titulo": "Contenedor Node.js Custom",
+  "nombre_imagen": "my-app-node-dev",
+  "tecnologia": "Node.js 18 + PostgreSQL 15",
+  "base_image": "node:18-alpine",
+  "dependencias": "pm2, redis-cli, curl, wget",
+  "descripcion": "Imagen con todas las herramientas para dev...",
+  "email_solicitante": "jperez@bancobase.com"
+}
+```
+
+---
+
+### 3️⃣ Infraestructura
+```
+POST /api/solicitudes/infraestructura
+```
+
+**Para solicitar:**
+- Bases de datos (PostgreSQL, MongoDB, MySQL)
+- Almacenamiento (S3, NFS, EBS)
+- Load Balancers
+- Cachés (Redis, Memcached)
+
+**Campos requeridos:**
+```javascript
+{
+  "titulo": "PostgreSQL para Pagos",
+  "tipo_recurso": "Base de Datos PostgreSQL",
+  "ambiente": "prod",
+  "especificaciones": "16GB RAM, 500GB SSD, Multi-AZ",
+  "sla_requerido": "99.99%",
+  "backup": "Daily automated, 30 days retention",
+  "descripcion": "BD para la aplicación de pagos...",
+  "email_solicitante": "jperez@bancobase.com"
+}
+```
+
+---
+
+### 4️⃣ Automatización / Pipeline / Workflow
+```
+POST /api/solicitudes/automatizacion
+```
+
+**Para solicitar:**
+- Workflows custom
+- Pipelines especiales
+- Scripts automatizados
+- Integraciones complejas
+
+**Campos requeridos:**
+```javascript
+{
+  "titulo": "Workflow Backup Automático",
+  "nombre_workflow": "Daily Database Backup to S3",
+  "trigger": "Cron job (2 AM UTC)",
+  "acciones": "Backup DB, compress, upload to S3, verify checksum, notify team",
+  "frecuencia": "Diario",
+  "descripcion": "Necesitamos automatizar backups de...",
+  "email_solicitante": "jperez@bancobase.com"
+}
+```
+
+---
+
+## 📊 Validaciones Incluidas
+
+### Nueva Herramienta ✓
+- Título requerido
+- Nombre de herramienta requerido
+- Caso de uso requerido
+- Descripción requerida
+- Email válido
+
+### Contenedor ✓
+- Título requerido
+- Nombre de imagen requerido
+- Tecnología requerida
+- Descripción requerida
+- Email válido
+
+### Infraestructura ✓
+- Título requerido
+- Tipo de recurso requerido
+- Ambiente válido (dev/qa/stg/prod)
+- Descripción requerida
+- Email válido
+
+### Automatización ✓
+- Título requerido
+- Nombre de workflow requerido
+- Trigger/evento requerido
+- Descripción requerida
+- Email válido
+
+---
+
+## ✨ Características Automáticas
+
+Cada endpoint incluye:
+
+✅ **ID único** → `REQ-XXXXXXXX`
+
+✅ **Correos automáticos:**
+   - Al equipo (con detalles específicos por categoría)
+   - Confirmación al solicitante
+
+✅ **Tickets Jira** → `BSJ-XXXXX` con ADF
+
+✅ **Validación de campos** → Retorna errores específicos (400)
+
+✅ **Respuesta JSON:**
+   ```json
+   {
+     "success": true,
+     "id": "REQ-XXXXXXXX",
+     "jiraTicket": "BSJ-12345",
+     "mensaje": "Solicitud de nueva herramienta GitLab enviada..."
+   }
+   ```
+
+---
+
+## 📡 Ejemplos cURL
+
+### Nueva Herramienta
+```bash
+curl -X POST http://localhost:9100/api/solicitudes/nueva-herramienta \
+  -H "Content-Type: application/json" \
+  -d '{
+    "titulo": "Solicitud GitLab CI",
+    "nombre_herramienta": "GitLab",
+    "caso_uso": "Reemplazar Bitbucket para CI/CD",
+    "beneficios": "Mejor integración con K8s",
+    "presupuesto": "$5000/año",
+    "descripcion": "Necesitamos GitLab porque...",
+    "email_solicitante": "jperez@bancobase.com"
+  }'
+```
+
+### Contenedor
+```bash
+curl -X POST http://localhost:9100/api/solicitudes/contenedor \
+  -H "Content-Type: application/json" \
+  -d '{
+    "titulo": "Contenedor Node.js Custom",
+    "nombre_imagen": "my-app-node",
+    "tecnologia": "Node.js 18 + PostgreSQL",
+    "base_image": "node:18-alpine",
+    "dependencias": "pm2, redis-cli, curl",
+    "descripcion": "Imagen custom para dev...",
+    "email_solicitante": "jperez@bancobase.com"
+  }'
+```
+
+### Infraestructura
+```bash
+curl -X POST http://localhost:9100/api/solicitudes/infraestructura \
+  -H "Content-Type: application/json" \
+  -d '{
+    "titulo": "PostgreSQL para Pagos",
+    "tipo_recurso": "Base de Datos PostgreSQL",
+    "ambiente": "prod",
+    "especificaciones": "16GB RAM, 500GB SSD, Multi-AZ",
+    "sla_requerido": "99.99%",
+    "backup": "Daily automated, 30 days",
+    "descripcion": "BD para pagos...",
+    "email_solicitante": "jperez@bancobase.com"
+  }'
+```
+
+### Automatización
+```bash
+curl -X POST http://localhost:9100/api/solicitudes/automatizacion \
+  -H "Content-Type: application/json" \
+  -d '{
+    "titulo": "Backup Automático",
+    "nombre_workflow": "Daily DB Backup",
+    "trigger": "Cron 2 AM UTC",
+    "acciones": "Backup, compress, upload S3, verify, notify",
+    "frecuencia": "Diario",
+    "descripcion": "Necesitamos automatizar backups...",
+    "email_solicitante": "jperez@bancobase.com"
+  }'
+```
+
+---
+
+## 🚀 Pasos para Implementar PASO 2
+
+### 1. Copiar nuevos archivos
+```bash
+cp solicitudes.controller.js backend/src/controllers/
+cp solicitudes.routes.js backend/src/routes/
+cp app_paso2.js backend/src/app.js  # reemplaza el app.js anterior
+```
+
+### 2. Verificar estructura
+```bash
+tree backend/src/ -L 2
+```
+
+Debe verse así:
+```
+backend/src/
+├── app.js                          ✅ (actualizado)
+├── config.js                       ✅ (sin cambios)
+├── controllers/
+│   ├── autoservicio.controller.js  ✅
+│   ├── herramientas.controller.js  ✅
+│   └── solicitudes.controller.js   ✅ NUEVO
+├── helpers/
+│   ├── jira.helpers.js             ✅
+│   └── mail.helpers.js             ✅
+└── routes/
+    ├── autoservicio.routes.js      ✅
+    ├── herramientas.routes.js      ✅
+    └── solicitudes.routes.js       ✅ NUEVO
+```
+
+### 3. Reiniciar el backend
+```bash
+docker compose restart backend
+# o si está corriendo local:
+npm start
+```
+
+### 4. Probar nuevos endpoints
+```bash
+# Probar una solicitud de nueva herramienta
+curl -X POST http://localhost:9100/api/solicitudes/nueva-herramienta \
+  -H "Content-Type: application/json" \
+  -d '{
+    "titulo": "Test",
+    "nombre_herramienta": "Test Tool",
+    "caso_uso": "Testing",
+    "beneficios": "Good benefits",
+    "presupuesto": "$1000",
+    "descripcion": "Test description",
+    "email_solicitante": "test@bancobase.com"
+  }'
+```
+
+---
+
+## 📊 Total de Endpoints (PASO 1 + PASO 2)
+
+### PASO 1: Herramientas (11 endpoints)
+- 3 Autoservicio
+- 8 Herramientas
+
+### PASO 2: Solicitudes Generales (4 endpoints) ✅ NUEVO
+- 1 Nueva Herramienta
+- 1 Contenedor
+- 1 Infraestructura
+- 1 Automatización
+
+**TOTAL: 15 endpoints listos**
+
+---
+
+## 🔄 Flujo de Solicitud Típica (Nueva Herramienta)
+
+```
+Usuario rellena formulario "Solicitar GitLab"
+              ↓
+POST /api/solicitudes/nueva-herramienta
+              ↓
+solicitudes.controller.js valida ✓
+              ↓
+Genera REQ-A1B2C3D4
+              ↓
+Envía:
+  - Correo a CORREO_DESTINO (con detalles)
+  - Confirmación a solicitante
+  - Ticket BSJ-12345 en Jira
+              ↓
+JSON response { success: true, id, jiraTicket }
+              ↓
+SPA muestra confirmación al usuario
+              ↓
+Equipo DevOps:
+  - Recibe email
+  - Abre Jira
+  - Evalúa herramienta
+  - Comenta avances en Jira
+  - Usuario notificado automáticamente
+```
+
+---
+
+## 📌 Validación de Campos
+
+Si faltan campos → Error 400:
+```json
+{
+  "success": false,
+  "error": "Datos inválidos",
+  "detalles": [
+    "Título de la solicitud requerido",
+    "Nombre de la herramienta requerido",
+    "Email válido requerido"
+  ]
+}
+```
+
+---
+
+## ✅ Checklist PASO 2
+
+- [ ] Copié `solicitudes.controller.js`
+- [ ] Copié `solicitudes.routes.js`
+- [ ] Reemplacé `app.js` con `app_paso2.js`
+- [ ] Reinicié backend
+- [ ] Probé `/api/solicitudes/nueva-herramienta`
+- [ ] Probé `/api/solicitudes/contenedor`
+- [ ] Probé `/api/solicitudes/infraestructura`
+- [ ] Probé `/api/solicitudes/automatizacion`
+- [ ] Recibí emails en CORREO_DESTINO
+- [ ] Se crearon tickets en Jira
+
+---
+
+## 📧 Próximo Paso
+
+Cuando los 4 endpoints estén funcionando:
+
+**"PASO 2 completado. Los 4 endpoints de solicitudes generales están funcionando. Listo para PASO 3: DESPLIEGUE ON-PREM"**
+
+---
+
+**Banco BASE — DevOps Platform Engineering**  
+Junio 2026
