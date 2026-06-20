@@ -8,7 +8,7 @@ const config = require('./config');
 const autoservicioRoutes = require('./routes/autoservicio.routes');
 const herramientasRoutes = require('./routes/herramientas.routes');
 const solicitudesRoutes = require('./routes/solicitudes.routes');
-// Más adelante: despliegueRoutes
+const despliegueRoutes = require('./routes/despliegue.routes');
 
 // ═══════════════════════════════════════════════════════════════════════════
 // INSTANCIA EXPRESS
@@ -29,6 +29,13 @@ app.get('/health', (req, res) => {
     environment: config.NODE_ENV,
     service: 'devops-portal-backend',
     timestamp: new Date().toISOString(),
+    endpoints: {
+      autoservicio: 3,
+      herramientas: 8,
+      solicitudes: 4,
+      despliegue: 3,
+      total: 18
+    }
   });
 });
 
@@ -45,8 +52,8 @@ app.use('/api/herramientas', herramientasRoutes);
 // SOLICITUDES GENERALES — Nueva herramienta, contenedor, infraestructura, automatización
 app.use('/api/solicitudes', solicitudesRoutes);
 
-// DESPLIEGUE — Despliegues en K8s On-Prem (cuando esté listo)
-// app.use('/api/despliegue', despliegueRoutes);
+// DESPLIEGUE — Despliegues en K8s On-Prem + Jenkins + Rollback   ACTIVADO
+app.use('/api/despliegue', despliegueRoutes);
 
 // ═══════════════════════════════════════════════════════════════════════════
 // MANEJO DE ERRORES 404
@@ -56,6 +63,13 @@ app.use((req, res) => {
     error: 'Ruta no encontrada',
     path: req.path,
     method: req.method,
+    endpoints: {
+      autoservicio: 3,
+      herramientas: 8,
+      solicitudes: 4,
+      despliegue: 3,
+      total: 18
+    }
   });
 });
 
@@ -68,5 +82,33 @@ app.listen(config.PORT, () => {
   console.log(`📍 Puerto: ${config.PORT}`);
   console.log(`📧 SMTP Configurado: ${config.SMTP_HOST && config.SMTP_USER ? 'SÍ' : 'NO'}`);
   console.log(`📋 JIRA Configurado: ${config.JIRA_API_TOKEN && config.JIRA_API_TOKEN !== 'tu_api_token' ? 'SÍ' : 'NO'}`);
+  console.log(`📦 Bitbucket Configurado: ${config.BITBUCKET_APP_PASSWORD ? 'SÍ' : 'NO'}`);
+  console.log(`${'═'.repeat(70)}`);
+  console.log(`\n✅ ENDPOINTS DISPONIBLES:\n`);
+  console.log(`   AUTOSERVICIO (3):`);
+  console.log(`     POST /api/autoservicio/solicitud-simple`);
+  console.log(`     POST /api/autoservicio/solicitud-vm`);
+  console.log(`     POST /api/autoservicio/solicitud-namespace\n`);
+  console.log(`   HERRAMIENTAS (8):`);
+  console.log(`     POST /api/herramientas/jenkins/acceso`);
+  console.log(`     POST /api/herramientas/bitbucket/acceso`);
+  console.log(`     POST /api/herramientas/argocd/app`);
+  console.log(`     POST /api/herramientas/kubernetes/acceso`);
+  console.log(`     POST /api/herramientas/sonarqube/proyecto`);
+  console.log(`     POST /api/herramientas/grafana/dashboard`);
+  console.log(`     POST /api/herramientas/harbor/acceso`);
+  console.log(`     POST /api/herramientas/vault/secrets\n`);
+  console.log(`   SOLICITUDES (4):`);
+  console.log(`     POST /api/solicitudes/herramienta`);
+  console.log(`     POST /api/solicitudes/contenedor`);
+  console.log(`     POST /api/solicitudes/infraestructura`);
+  console.log(`     POST /api/solicitudes/automatizacion\n`);
+  console.log(`   DESPLIEGUE (3):`);
+  console.log(`     POST /api/despliegue/kubernetes`);
+  console.log(`     POST /api/despliegue/jenkins-trigger`);
+  console.log(`     POST /api/despliegue/rollback\n`);
+  console.log(`   HEALTH: GET /health\n`);
   console.log(`${'═'.repeat(70)}\n`);
 });
+
+module.exports = app;
