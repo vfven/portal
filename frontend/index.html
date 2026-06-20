@@ -769,31 +769,40 @@ REQUEST_KEY=SDS-1234</code></div><p style="margin-top:12px;font-size:13px;color:
 
 <script>
 // ===============================================
+// CONFIGURACIÓN DE API
+// ===============================================
+var API_BASE = '/api';
+
+// ===============================================
 // FUNCIÓN AUXILIAR: ENVIAR AL BACKEND
 // ===============================================
-function enviarAlBackend(endpoint, datos, feedbackElement, onSuccess = null) {
-  fetch(endpoint, {
+function enviarAlBackend(endpoint, datos, feedbackElement, onSuccess) {
+  if (onSuccess === undefined) onSuccess = null;
+  
+  fetch(API_BASE + endpoint, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(datos)
   })
-  .then(response => response.json())
-  .then(data => {
+  .then(function(response) {
+    return response.json();
+  })
+  .then(function(data) {
     if (data.success) {
       feedbackElement.className = 'feedback success';
       feedbackElement.innerHTML = '✅ ' + data.mensaje + '<br>ID: ' + data.id + '<br>Jira: ' + (data.jiraTicket || 'N/A');
       if (onSuccess) onSuccess();
-      setTimeout(() => { feedbackElement.className = 'feedback'; }, 5000);
+      setTimeout(function() { feedbackElement.className = 'feedback'; }, 5000);
     } else {
       feedbackElement.className = 'feedback error';
       feedbackElement.innerHTML = '❌ ' + data.error + '<br>' + (data.detalles || []).join('<br>');
-      setTimeout(() => { feedbackElement.className = 'feedback'; }, 5000);
+      setTimeout(function() { feedbackElement.className = 'feedback'; }, 5000);
     }
   })
-  .catch(error => {
+  .catch(function(error) {
     feedbackElement.className = 'feedback error';
     feedbackElement.innerHTML = '❌ Error de conexión: ' + error.message;
-    setTimeout(() => { feedbackElement.className = 'feedback'; }, 5000);
+    setTimeout(function() { feedbackElement.className = 'feedback'; }, 5000);
   });
 }
 
