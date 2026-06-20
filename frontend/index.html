@@ -1115,6 +1115,9 @@ function quickFill(nombre, desc) {
   }
 }
 
+// ===============================================
+// SOLICITAR - FORMULARIO PERSONALIZADO
+// ===============================================
 function submitSolicitar() {
   var sType = document.getElementById('sol-serviceType').value;
   var sName = document.getElementById('sol-serviceName').value.trim();
@@ -1143,7 +1146,8 @@ function submitSolicitar() {
     fecha: new Date().toISOString()
   };
 
-  enviarAlBackend('/api/solicitud-simple', datos, fb, function() {
+  // ✅ CORREGIDO: Usar el endpoint correcto
+  enviarAlBackend('/autoservicio/solicitud-simple', datos, fb, function() {
     document.getElementById('sol-serviceForm').reset();
   });
 }
@@ -1296,6 +1300,9 @@ function submitDeploy() {
   });
 }
 
+// ===============================================
+// FORMULARIO DEL CATÁLOGO
+// ===============================================
 function submitForm(fbId, formId) {
   var form = document.getElementById(formId);
   if (!form || !form.checkValidity()) {
@@ -1319,7 +1326,8 @@ function submitForm(fbId, formId) {
     fecha: new Date().toISOString()
   };
 
-  enviarAlBackend('/api/solicitud-simple', datos, fb, function() {
+  // ✅ CORREGIDO: Usar el endpoint correcto
+  enviarAlBackend('/autoservicio/solicitud-simple', datos, fb, function() {
     form.reset();
   });
 }
