@@ -1234,7 +1234,8 @@ function openAutoModal(id) {
     datos.email_solicitante = formData.get('email') || 'anonimo@banco-base.com';
     
     var fb = document.getElementById('aut-feedback');
-    enviarAlBackend('/api/solicitud-simple', datos, fb, function() {
+    // ✅ CORREGIDO: Usar el endpoint correcto
+    enviarAlBackend('/autoservicio/solicitud-simple', datos, fb, function() {
       form.reset();
       setTimeout(function(){ closeModal(); }, 3000);
     });
@@ -1291,7 +1292,7 @@ function submitDeploy() {
     fecha: new Date().toISOString()
   };
 
-  enviarAlBackend('/api/solicitud-simple', datos, fb, function() {
+  enviarAlBackend('/autoservicio/solicitud-simple', datos, fb, function() {
     var fields = ['dep-application','dep-repo','dep-branch','dep-summary','dep-description'];
     for (var i = 0; i < fields.length; i++) {
       var el = document.getElementById(fields[i]);
