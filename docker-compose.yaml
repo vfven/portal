@@ -1,10 +1,38 @@
-# ═══════════════════════════════════════════════════
+# ═══════════════════════════════════════════════════════
 # Docker Compose — DevOps Portal Banco BASE
-# Uso local: docker compose up
-# ═══════════════════════════════════════════════════
+# Descripción:
+#   Levanta el Portal DevOps completo en un entorno local
+#   o de laboratorio, incluyendo:
+#
+#   • Frontend (SPA Angular/React servido por Nginx)
+#   • Backend (API Node.js)
+#   • Ollama (LLM local para funcionalidades de IA)
+#   • Inicialización automática del modelo de IA
+#
+# Uso:
+#   docker compose up -d
+#
+# Detener:
+#   docker compose down
+#
+# Ver logs:
+#   docker compose logs -f
+# ═══════════════════════════════════════════════════════
 
 services:
 
+  # ═══════════════════════════════════════════════════
+  # FRONTEND
+  # Aplicación Web del Portal DevOps
+  #
+  # Funciones:
+  #   • Interfaz de usuario
+  #   • Consumo de APIs del backend
+  #   • Punto de entrada del sistema
+  #
+  # Acceso:
+  #   http://localhost:9100
+  # ═══════════════════════════════════════════════════
   frontend:
     build:
       context: ./frontend
@@ -23,13 +51,27 @@ services:
       timeout: 5s
       retries: 3
 
+  # ═══════════════════════════════════════════════════
+  # BACKEND
+  # API Node.js del Portal DevOps
+  #
+  # Responsabilidades:
+  #   • Exposición de APIs REST
+  #   • Integración con Jira
+  #   • Envío de correos
+  #   • Orquestación de procesos
+  #   • Consumo del servicio de IA local (Ollama)
+  #
+  # Acceso:
+  #   http://localhost:3000
+  # ═══════════════════════════════════════════════════
   backend:
     build:
       context: ./backend
       dockerfile: Dockerfile
     container_name: devops-portal-backend
     ports:
-      - "3000:3000"   # solo para debug
+      - "3000:3000"   # Expuesto únicamente para debug local
     environment:
       - NODE_ENV=${NODE_ENV:-production}
       - PORT=${PORT:-3000}
@@ -43,6 +85,13 @@ services:
       - JIRA_USER_EMAIL=${JIRA_USER_EMAIL}
       - JIRA_API_TOKEN=${JIRA_API_TOKEN}
       - JIRA_TYPE_SOLICITUD=${JIRA_TYPE_SOLICITUD}
+
+      # Configuración de Inteligencia Artificial Local
+      - OLLAMA_URL=http://ollama:11434
+      - OLLAMA_MODEL=${OLLAMA_MODEL:-qwen2.5:3b}
+
+    depends_on:
+      - ollama
     networks:
       - portal-network
     restart: unless-stopped
@@ -52,6 +101,108 @@ services:
       timeout: 5s
       retries: 3
 
+  # ═══════════════════════════════════════════════════
+  # OLLAMA
+  # Servicio de Inteligencia Artificial Local
+  #
+  # Responsabilidades:
+  #   • Hospedaje del LLM local
+  #   • Inferencia de modelos de lenguaje
+  #   • Procesamiento de prompts del portal
+  #
+  # Persistencia:
+  #   Los modelos descargados se almacenan en el
+  #   volumen "ollama_models" y sobreviven reinicios.
+  #
+  # Acceso:
+  #   http://localhost:11434
+  # ═══════════════════════════════════════════════════
+  ollama:
+    image: ollama/ollama:latest
+    container_name: devops-portal-ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_models:/root/.ollama
+    networks:
+      - portal-network
+    restart: unless-stopped
+
+    # Habilitar si se cuenta con GPU NVIDIA
+    #
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: 1
+    #           capabilities: [gpu]
+
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  # ═══════════════════════════════════════════════════
+  # OLLAMA INIT
+  # Inicialización del Modelo de IA
+  #
+  # Funciones:
+  #   • Se ejecuta únicamente la primera vez
+  #   • Descarga el modelo configurado
+  #   • Finaliza automáticamente al concluir
+  #
+  # Modelo por defecto:
+  #   qwen2.5:3b
+  #
+  # Nota:
+  #   Puede cambiarse por cualquier modelo soportado
+  #   por Ollama modificando el comando "ollama pull".
+  # ═══════════════════════════════════════════════════
+  ollama-init:
+    image: ollama/ollama:latest
+    container_name: devops-portal-ollama-init
+    depends_on:
+      ollama:
+        condition: service_healthy
+    environment:
+      - OLLAMA_HOST=http://ollama:11434
+    entrypoint: >
+      /bin/sh -c "
+        echo '📦 Descargando modelo qwen2.5:3b...' &&
+        ollama pull qwen2.5:3b &&
+        echo '✅ Modelo listo.'
+      "
+    volumes:
+      - ollama_models:/root/.ollama
+    networks:
+      - portal-network
+    restart: "no"
+
+# ═══════════════════════════════════════════════════
+# VOLUMES
+#
+# ollama_models:
+#   Almacena los modelos descargados por Ollama para
+#   evitar tener que descargarlos nuevamente después
+#   de reinicios o recreación de contenedores.
+# ═══════════════════════════════════════════════════
+volumes:
+  ollama_models:
+    driver: local
+
+# ═══════════════════════════════════════════════════
+# NETWORKS
+#
+# portal-network:
+#   Red interna utilizada para la comunicación entre:
+#     • Frontend
+#     • Backend
+#     • Ollama
+#     • Servicios futuros del portal
+# ═══════════════════════════════════════════════════
 networks:
   portal-network:
     driver: bridge
