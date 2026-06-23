@@ -9,6 +9,7 @@ const autoservicioRoutes = require('./routes/autoservicio.routes');
 const herramientasRoutes = require('./routes/herramientas.routes');
 const solicitudesRoutes = require('./routes/solicitudes.routes');
 const despliegueRoutes = require('./routes/despliegue.routes');
+const chatRoutes = require('./routes/chat.routes');
 
 // ═══════════════════════════════════════════════════════════════════════════
 // INSTANCIA EXPRESS
@@ -54,6 +55,9 @@ app.use('/api/solicitudes', solicitudesRoutes);
 
 // DESPLIEGUE — Despliegues en K8s On-Prem + Jenkins + Rollback   ACTIVADO
 app.use('/api/despliegue', despliegueRoutes);
+
+// CHAT — Asistente IA local (Ollama)
+app.use('/api/chat', chatRoutes);
 
 // ═══════════════════════════════════════════════════════════════════════════
 // MANEJO DE ERRORES 404
