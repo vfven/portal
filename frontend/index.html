@@ -2033,5 +2033,478 @@ function submitDespliegueRollback() {
   });
 }
 </script>
+<!-- ═══════════════════════════════════════════════════════════════
+   CHATBOT IA — Portal DevOps Banco BASE
+   Pegar este bloque completo justo antes de </body> en index.html
+═══════════════════════════════════════════════════════════════ -->
+
+<style>
+/* ── Fab (botón flotante) ── */
+#chat-fab {
+  position: fixed; bottom: 28px; right: 28px;
+  width: 56px; height: 56px;
+  background: #002B5C; border: none; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; box-shadow: 0 4px 16px rgba(0,43,92,.4);
+  z-index: 600; transition: transform .2s, box-shadow .2s;
+}
+#chat-fab:hover { transform: scale(1.1); box-shadow: 0 6px 20px rgba(0,43,92,.5); }
+#chat-fab svg { width: 28px; height: 28px; fill: #fff; }
+#chat-fab .fab-badge {
+  position: absolute; top: -3px; right: -3px;
+  width: 14px; height: 14px; background: #F9A800;
+  border-radius: 50%; border: 2px solid #fff;
+  display: none;
+}
+#chat-fab .fab-badge.visible { display: block; }
+
+/* ── Ventana ── */
+#chat-box {
+  display: none; flex-direction: column;
+  position: fixed; bottom: 96px; right: 28px;
+  width: 360px; height: 520px;
+  background: #fff; border-radius: 16px;
+  box-shadow: 0 12px 40px rgba(0,0,0,.18);
+  border: 1px solid #E2E8F0; z-index: 600;
+  overflow: hidden; transition: opacity .2s, transform .2s;
+  opacity: 0; transform: translateY(12px);
+}
+#chat-box.open {
+  display: flex; opacity: 1; transform: translateY(0);
+}
+
+/* ── Header ── */
+#chat-header {
+  background: #002B5C; padding: 14px 16px;
+  display: flex; align-items: center; gap: 10px; flex-shrink: 0;
+}
+.chat-avatar {
+  width: 36px; height: 36px; background: rgba(249,168,0,.2);
+  border: 1px solid rgba(249,168,0,.4); border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 18px; flex-shrink: 0;
+}
+.chat-title { flex: 1; }
+.chat-title strong { display: block; color: #fff; font-size: 14px; font-weight: 600; }
+.chat-title span { color: rgba(255,255,255,.65); font-size: 11px; }
+#ia-status { width: 8px; height: 8px; border-radius: 50%; background: #888; flex-shrink: 0; }
+#ia-status.online { background: #22c55e; }
+#chat-close {
+  background: none; border: none; color: rgba(255,255,255,.7);
+  font-size: 20px; cursor: pointer; padding: 4px; line-height: 1;
+}
+#chat-close:hover { color: #fff; }
+
+/* ── Mensajes ── */
+#chat-messages {
+  flex: 1; overflow-y: auto; padding: 16px;
+  display: flex; flex-direction: column; gap: 12px;
+  scroll-behavior: smooth;
+}
+.cm { max-width: 85%; font-size: 13px; line-height: 1.5; }
+.cm-user {
+  align-self: flex-end;
+  background: #002B5C; color: #fff;
+  padding: 10px 14px; border-radius: 16px 16px 4px 16px;
+}
+.cm-bot {
+  align-self: flex-start;
+  background: #F1F5F9; color: #1E2A3A;
+  padding: 10px 14px; border-radius: 16px 16px 16px 4px;
+}
+.cm-bot.typing { opacity: .55; font-style: italic; }
+
+/* Botón de acción dentro del mensaje */
+.cm-action-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  margin-top: 10px; padding: 7px 14px;
+  background: #002B5C; color: #fff;
+  border: none; border-radius: 8px;
+  font-size: 12px; font-weight: 600; cursor: pointer;
+  transition: background .2s;
+}
+.cm-action-btn:hover { background: #001F44; }
+.cm-action-btn svg { width: 14px; height: 14px; fill: #F9A800; }
+
+/* Chips de sugerencias ── */
+.chat-suggestions {
+  display: flex; flex-wrap: wrap; gap: 6px;
+  padding: 0 16px 10px; flex-shrink: 0;
+}
+.sug-btn {
+  background: #F1F5F9; border: 1px solid #E2E8F0;
+  border-radius: 20px; padding: 5px 12px;
+  font-size: 11px; font-weight: 500; color: #002B5C;
+  cursor: pointer; transition: all .15s; white-space: nowrap;
+}
+.sug-btn:hover { background: #E8EEF5; border-color: #002B5C; }
+
+/* ── Input ── */
+#chat-input-row {
+  display: flex; gap: 8px; padding: 10px 12px;
+  border-top: 1px solid #E2E8F0; flex-shrink: 0;
+  background: #fff;
+}
+#chat-input {
+  flex: 1; border: 1px solid #E2E8F0; border-radius: 10px;
+  padding: 9px 12px; font-size: 13px; font-family: 'Inter', sans-serif;
+  outline: none; resize: none; line-height: 1.4; max-height: 80px;
+  overflow-y: auto;
+}
+#chat-input:focus { border-color: #F9A800; box-shadow: 0 0 0 2px rgba(249,168,0,.2); }
+#chat-send {
+  background: #002B5C; color: #fff; border: none;
+  border-radius: 10px; padding: 9px 16px;
+  font-size: 13px; font-weight: 600; cursor: pointer;
+  transition: background .2s; flex-shrink: 0;
+}
+#chat-send:hover { background: #001F44; }
+#chat-send:disabled { opacity: .5; cursor: not-allowed; }
+
+/* ── Overlay de guía de campos ── */
+#guide-overlay {
+  position: fixed; inset: 0; z-index: 1100;
+  pointer-events: none;
+}
+.guide-tooltip {
+  position: absolute; background: #002B5C; color: #fff;
+  padding: 8px 12px; border-radius: 8px;
+  font-size: 12px; line-height: 1.4;
+  max-width: 220px; pointer-events: none;
+  box-shadow: 0 4px 12px rgba(0,0,0,.25);
+  border-left: 3px solid #F9A800;
+  animation: fadeInTip .3s ease;
+}
+.guide-tooltip::before {
+  content: ''; position: absolute; top: 12px; left: -7px;
+  border: 5px solid transparent; border-right-color: #002B5C;
+}
+@keyframes fadeInTip { from { opacity:0; transform:translateX(8px); } to { opacity:1; transform:translateX(0); } }
+.guide-highlight {
+  position: absolute;
+  border: 2px solid #F9A800; border-radius: 6px;
+  background: rgba(249,168,0,.08);
+  pointer-events: none;
+  animation: pulseHighlight 1.5s ease-in-out infinite;
+}
+@keyframes pulseHighlight {
+  0%,100% { box-shadow: 0 0 0 0 rgba(249,168,0,.4); }
+  50%      { box-shadow: 0 0 0 6px rgba(249,168,0,.0); }
+}
+</style>
+
+<!-- Botón flotante -->
+<button id="chat-fab" onclick="chatToggle()" title="Asistente DevOps IA">
+  <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12c0 1.82.49 3.53 1.35 5L2 22l5-1.35C8.47 21.51 10.18 22 12 22c5.52 0 10-4.48 10-10S17.52 2 12 2zm-1 14H9v-2h2v2zm0-4H9V8h2v4zm4 4h-2v-2h2v2zm0-4h-2V8h2v4z"/></svg>
+  <div class="fab-badge" id="fab-badge"></div>
+</button>
+
+<!-- Ventana del chat -->
+<div id="chat-box">
+  <div id="chat-header">
+    <div class="chat-avatar">🤖</div>
+    <div class="chat-title">
+      <strong>Asistente DevOps</strong>
+      <span id="ia-status-label">Verificando IA...</span>
+    </div>
+    <div id="ia-status"></div>
+    <button id="chat-close" onclick="chatToggle()">✕</button>
+  </div>
+
+  <div id="chat-messages">
+    <div class="cm cm-bot">
+      ¡Hola! Soy el asistente IA del portal DevOps de Banco BASE. Puedo ayudarte a navegar el portal y guiarte paso a paso para llenar cualquier formulario.<br><br>
+      Pregúntame algo como: <em>"quiero acceso a Jenkins"</em> o <em>"necesito una base de datos"</em>.
+    </div>
+  </div>
+
+  <!-- Sugerencias rápidas -->
+  <div class="chat-suggestions" id="chat-suggestions">
+    <button class="sug-btn" onclick="chatSuggestion('Quiero acceso a Jenkins')">🔧 Acceso Jenkins</button>
+    <button class="sug-btn" onclick="chatSuggestion('Necesito acceso a Bitbucket')">📁 Acceso Bitbucket</button>
+    <button class="sug-btn" onclick="chatSuggestion('Quiero crear una base de datos')">🗄️ Base de datos</button>
+    <button class="sug-btn" onclick="chatSuggestion('Necesito guardar secretos en Vault')">🔑 Secretos Vault</button>
+    <button class="sug-btn" onclick="chatSuggestion('¿Qué herramientas están disponibles?')">📋 Herramientas</button>
+    <button class="sug-btn" onclick="chatSuggestion('Cómo despliego en Kubernetes')">☸️ Guías K8s</button>
+  </div>
+
+  <div id="chat-input-row">
+    <textarea id="chat-input" placeholder="Escribe tu pregunta..." rows="1"
+      onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();chatSend()}"></textarea>
+    <button id="chat-send" onclick="chatSend()">Enviar</button>
+  </div>
+</div>
+
+<!-- Overlay de guía de campos -->
+<div id="guide-overlay"></div>
+
+<script>
+// ═══════════════════════════════════════════════════
+// ESTADO DEL CHAT
+// ═══════════════════════════════════════════════════
+var chatOpen    = false;
+var chatLoading = false;
+var chatHistory = [];     // historial de mensajes para contexto
+var iaOnline    = false;
+var guideActive = false;
+
+// ═══════════════════════════════════════════════════
+// TOGGLE DEL CHAT
+// ═══════════════════════════════════════════════════
+function chatToggle() {
+  chatOpen = !chatOpen;
+  var box = document.getElementById('chat-box');
+  if (chatOpen) {
+    box.classList.add('open');
+    document.getElementById('fab-badge').classList.remove('visible');
+    document.getElementById('chat-input').focus();
+  } else {
+    box.classList.remove('open');
+    clearGuide();
+  }
+}
+
+// ═══════════════════════════════════════════════════
+// VERIFICAR ESTADO DE LA IA AL CARGAR
+// ═══════════════════════════════════════════════════
+function checkIAStatus() {
+  fetch('/api/chat/estado')
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      var dot   = document.getElementById('ia-status');
+      var label = document.getElementById('ia-status-label');
+      if (data.disponible) {
+        dot.classList.add('online');
+        label.textContent = 'IA lista · ' + data.modelo;
+        iaOnline = true;
+      } else {
+        label.textContent = 'IA iniciando...';
+        // Reintentar cada 15s hasta que esté disponible
+        setTimeout(checkIAStatus, 15000);
+      }
+    })
+    .catch(function() {
+      document.getElementById('ia-status-label').textContent = 'IA no disponible';
+      setTimeout(checkIAStatus, 20000);
+    });
+}
+checkIAStatus();
+
+// ═══════════════════════════════════════════════════
+// AÑADIR MENSAJE AL CHAT
+// ═══════════════════════════════════════════════════
+function chatAppend(text, role, extraHTML) {
+  var msgs = document.getElementById('chat-messages');
+  var div = document.createElement('div');
+  div.className = 'cm cm-' + role;
+  div.textContent = text;
+  if (extraHTML) div.innerHTML += extraHTML;
+  msgs.appendChild(div);
+  msgs.scrollTop = msgs.scrollHeight;
+  return div;
+}
+
+// ═══════════════════════════════════════════════════
+// ENVIAR MENSAJE (chip de sugerencia)
+// ═══════════════════════════════════════════════════
+function chatSuggestion(text) {
+  document.getElementById('chat-input').value = text;
+  chatSend();
+}
+
+// ═══════════════════════════════════════════════════
+// ENVIAR MENSAJE PRINCIPAL
+// ═══════════════════════════════════════════════════
+function chatSend() {
+  if (chatLoading) return;
+  var input = document.getElementById('chat-input');
+  var text  = input.value.trim();
+  if (!text) return;
+
+  input.value = '';
+  chatLoading = true;
+
+  // Mostrar mensaje del usuario
+  chatAppend(text, 'user');
+  chatHistory.push({ role: 'user', content: text });
+
+  // Indicador de escritura
+  var typing = chatAppend('Analizando tu solicitud...', 'bot');
+  typing.classList.add('typing');
+
+  // Deshabilitar botón
+  document.getElementById('chat-send').disabled = true;
+  // Ocultar sugerencias tras primer envío
+  document.getElementById('chat-suggestions').style.display = 'none';
+
+  // Llamar al backend
+  fetch('/api/chat', {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body:    JSON.stringify({ messages: chatHistory })
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    typing.remove();
+    chatLoading = false;
+    document.getElementById('chat-send').disabled = false;
+
+    if (!data.success) {
+      chatAppend('Lo siento, ocurrió un error. Intenta de nuevo.', 'bot');
+      return;
+    }
+
+    // Guardar respuesta en historial
+    chatHistory.push({ role: 'assistant', content: data.texto });
+    if (chatHistory.length > 20) chatHistory = chatHistory.slice(-20);
+
+    // Construir botón de acción si hay navegación
+    var actionHTML = '';
+    if (data.accion === 'navegar' && data.seccion) {
+      var label = data.modal_id
+        ? 'Ir al formulario →'
+        : 'Ver sección →';
+      actionHTML = '<br><button class="cm-action-btn" onclick="chatEjecutarAccion(\'' +
+        data.seccion + '\',\'' + (data.modal_id || '') + '\',' +
+        JSON.stringify(data.guia_campos || null).replace(/"/g, '&quot;') +
+        ')">' +
+        '<svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>' +
+        label + '</button>';
+    }
+
+    chatAppend(data.texto, 'bot', actionHTML);
+
+    // Notificación si el chat está cerrado
+    if (!chatOpen) {
+      document.getElementById('fab-badge').classList.add('visible');
+    }
+
+    // Ejecutar navegación automáticamente si hay intención clara
+    if (data.accion === 'navegar' && data.seccion) {
+      setTimeout(function() {
+        chatEjecutarAccion(data.seccion, data.modal_id || '', data.guia_campos || null);
+      }, 800);
+    }
+  })
+  .catch(function() {
+    typing.remove();
+    chatLoading = false;
+    document.getElementById('chat-send').disabled = false;
+    chatAppend('Error de conexión. Verifica que el servidor esté corriendo.', 'bot');
+  });
+}
+
+// ═══════════════════════════════════════════════════
+// EJECUTAR NAVEGACIÓN GUIADA
+// ═══════════════════════════════════════════════════
+function chatEjecutarAccion(seccion, modalId, guiaCampos) {
+  // 1. Navegar a la sección
+  if (typeof navigate === 'function') {
+    navigate(seccion);
+  }
+
+  // 2. Abrir el modal si aplica
+  if (modalId) {
+    setTimeout(function() {
+      // Hacer scroll a la sección de autoservicio
+      var container = document.getElementById('view-' + seccion);
+      if (container) container.scrollTop = 0;
+
+      // Renderizar autoservicio si no se ha hecho
+      if (typeof renderAutoservicio === 'function' && !window._autLoaded) {
+        renderAutoservicio();
+        window._autLoaded = true;
+      }
+
+      // Abrir el modal del servicio correspondiente
+      if (typeof openAutoModal === 'function') {
+        openAutoModal(modalId);
+      }
+
+      // 3. Activar guía de campos si hay instrucciones
+      if (guiaCampos && guiaCampos.length > 0) {
+        setTimeout(function() {
+          activarGuiaCampos(guiaCampos);
+        }, 600);
+      }
+    }, 500);
+  }
+}
+
+// ═══════════════════════════════════════════════════
+// GUÍA DE CAMPOS — resalta y explica cada input del modal
+// ═══════════════════════════════════════════════════
+function activarGuiaCampos(campos) {
+  clearGuide();
+  guideActive = true;
+  var overlay = document.getElementById('guide-overlay');
+  overlay.innerHTML = '';
+
+  // Buscar los inputs del modal abierto
+  var modal = document.getElementById('autForm');
+  if (!modal) return;
+
+  var inputs = modal.querySelectorAll('input, select, textarea');
+  var idx    = 0;
+
+  function resaltarSiguiente() {
+    if (idx >= inputs.length || idx >= campos.length) {
+      // Tour completo — mostrar mensaje final
+      setTimeout(clearGuide, 3000);
+      return;
+    }
+
+    var input  = inputs[idx];
+    var config = campos[idx] || { campo: '', descripcion: '' };
+    idx++;
+
+    // Resaltar el input
+    var rect = input.getBoundingClientRect();
+    var highlight = document.createElement('div');
+    highlight.className = 'guide-highlight';
+    highlight.style.cssText = [
+      'top:'    + (rect.top    + window.scrollY - 3) + 'px',
+      'left:'   + (rect.left   + window.scrollX - 3) + 'px',
+      'width:'  + (rect.width  + 6) + 'px',
+      'height:' + (rect.height + 6) + 'px',
+    ].join(';');
+    overlay.appendChild(highlight);
+
+    // Tooltip con la descripción
+    var tip = document.createElement('div');
+    tip.className = 'guide-tooltip';
+    tip.style.cssText = [
+      'top:'  + (rect.top    + window.scrollY + rect.height + 8) + 'px',
+      'left:' + (rect.right  + window.scrollX + 10) + 'px',
+    ].join(';');
+    tip.innerHTML = '<strong>' + config.campo + '</strong><br>' + config.descripcion;
+    overlay.appendChild(tip);
+
+    // Hacer foco en el input
+    input.focus();
+
+    // Pasar al siguiente campo al hacer clic o tras 3s
+    var next = function() {
+      overlay.innerHTML = '';
+      resaltarSiguiente();
+    };
+    input.addEventListener('click', next, { once: true });
+    setTimeout(next, 3500);
+  }
+
+  resaltarSiguiente();
+}
+
+function clearGuide() {
+  guideActive = false;
+  var overlay = document.getElementById('guide-overlay');
+  if (overlay) overlay.innerHTML = '';
+}
+
+// Limpiar guía al cerrar modal
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') clearGuide();
+});
+</script>
 </body>
 </html>
