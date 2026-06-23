@@ -15,7 +15,7 @@ metadata:
 spec:
   ingressClassName: nginx           # <-- AJUSTAR si tu clase es distinta
   rules:
-    - host: portal.bancobase.com    # <-- AJUSTAR
+    - host: devops-portal.bancobase.net    # <-- AJUSTAR
       http:
         paths:
           - path: /

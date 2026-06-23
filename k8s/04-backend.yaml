@@ -20,7 +20,7 @@ spec:
     spec:
       containers:
         - name: backend
-          image: bancobase/devops-portal-backend:latest    # <-- AJUSTAR
+          image: registry.bancobase.net/digitalteam/gfb-serviceportal-backend:1.0.0
           imagePullPolicy: IfNotPresent
           ports:
             - name: http

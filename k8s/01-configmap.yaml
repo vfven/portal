@@ -16,6 +16,7 @@ data:
   JIRA_DOMAIN: "https://bancobase.atlassian.net"
   JIRA_PROJECT_KEY: "BSJ"
   JIRA_USER_EMAIL: "digital@bancobase.com"
+  NODE_TLS_REJECT_UNAUTHORIZED: "0"
   JIRA_TYPE_SOLICITUD: "10428"
   OLLAMA_URL: "http://ollama:11434"
   OLLAMA_MODEL: "qwen2.5:3b"

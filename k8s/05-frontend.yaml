@@ -22,7 +22,7 @@ spec:
     spec:
       containers:
         - name: frontend
-          image: bancobase/devops-portal-frontend:latest   # <-- AJUSTAR
+          image: registry.bancobase.net/digitalteam/gfb-serviceportal-frontend:1.0.0
           imagePullPolicy: IfNotPresent
           ports:
             - name: http
