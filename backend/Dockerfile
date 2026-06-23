@@ -13,7 +13,7 @@ COPY package*.json ./
 # Instala solo dependencias de producción limpiando la caché
 #RUN npm ci --only=production
 RUN npm config set strict-ssl false
-RUN npm install -omit=dev
+RUN npm install --omit=dev
 
 #Stage 2: Entorno de ejecución final ---
 FROM node:18-alpine
