@@ -1,0 +1,30 @@
+# ═══════════════════════════════════════════════════
+# Ingress — exposición HTTP/HTTPS
+#   Requiere un Ingress Controller (nginx-ingress, traefik, etc.)
+#   Ajusta host, TLS y annotations según tu clúster.
+# ═══════════════════════════════════════════════════
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: portal
+  namespace: devops-portal
+  annotations:
+    # nginx-ingress
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "120"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "120"
+spec:
+  ingressClassName: nginx           # <-- AJUSTAR si tu clase es distinta
+  rules:
+    - host: portal.bancobase.com    # <-- AJUSTAR
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: frontend
+                port:
+                  number: 80
+  # tls:
+  #   - hosts: [ portal.bancobase.com ]
+  #     secretName: portal-tls

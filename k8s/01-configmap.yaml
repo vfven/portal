@@ -1,0 +1,21 @@
+# ═══════════════════════════════════════════════════
+# ConfigMap — variables NO sensibles del backend
+# ═══════════════════════════════════════════════════
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: backend-config
+  namespace: devops-portal
+data:
+  NODE_ENV: "production"
+  PORT: "3000"
+  CORREO_DESTINO: "pruebasvic+digital@bancobase.com"
+  SMTP_HOST: "smtp.i.gslb"
+  SMTP_PORT: "25"
+  SMTP_USER: "notificaciones@bancobase.com"
+  JIRA_DOMAIN: "https://bancobase.atlassian.net"
+  JIRA_PROJECT_KEY: "BSJ"
+  JIRA_USER_EMAIL: "digital@bancobase.com"
+  JIRA_TYPE_SOLICITUD: "10428"
+  OLLAMA_URL: "http://ollama:11434"
+  OLLAMA_MODEL: "qwen2.5:3b"

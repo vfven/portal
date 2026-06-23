@@ -1,0 +1,97 @@
+# ═══════════════════════════════════════════════════
+# OLLAMA — LLM local
+#   * PVC para persistir modelos (~2 GB qwen2.5:3b)
+#   * Deployment con 1 réplica (los modelos no son shareables entre réplicas en RWO)
+#   * postStart hook: hace "ollama pull" del modelo
+#   * Service ClusterIP interno
+# ═══════════════════════════════════════════════════
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: ollama-models
+  namespace: devops-portal
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+  # storageClassName: ""   # déjalo vacío para usar el default del clúster
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ollama
+  namespace: devops-portal
+  labels:
+    app: ollama
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate         # PVC RWO: no permitir 2 pods simultáneos
+  selector:
+    matchLabels:
+      app: ollama
+  template:
+    metadata:
+      labels:
+        app: ollama
+    spec:
+      containers:
+        - name: ollama
+          image: ollama/ollama:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 11434
+          env:
+            - name: OLLAMA_KEEP_ALIVE
+              value: "30m"
+          volumeMounts:
+            - name: models
+              mountPath: /root/.ollama
+          # Descarga del modelo al iniciar (idempotente: si ya está, no hace nada)
+          lifecycle:
+            postStart:
+              exec:
+                command:
+                  - /bin/sh
+                  - -c
+                  - |
+                    until ollama list >/dev/null 2>&1; do sleep 2; done
+                    ollama pull qwen2.5:3b || true
+          readinessProbe:
+            tcpSocket:
+              port: 11434
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: 11434
+            initialDelaySeconds: 30
+            periodSeconds: 30
+          resources:
+            requests:
+              cpu: "500m"
+              memory: "2Gi"
+            limits:
+              cpu: "4"
+              memory: "6Gi"
+      volumes:
+        - name: models
+          persistentVolumeClaim:
+            claimName: ollama-models
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ollama
+  namespace: devops-portal
+spec:
+  type: ClusterIP
+  selector:
+    app: ollama
+  ports:
+    - name: http
+      port: 11434
+      targetPort: 11434
