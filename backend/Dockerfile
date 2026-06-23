@@ -1,6 +1,6 @@
 # ═══════════════════════════════════════════════════
-# DevOps Portal Frontend — Banco BASE
-# Imagen: nginx alpine sirviendo la SPA
+# DevOps Portal Backend — Banco BASE
+# Imagen: node 18 alpine ejecutando la API
 # ═══════════════════════════════════════════════════
 
 #Stage 1: Construcción y dependencias ---
