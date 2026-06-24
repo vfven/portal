@@ -67,10 +67,24 @@ exports.procesarSolicitudSimple = async (req, res) => {
     await enviarCorreoEquipo(datos, idSolicitud);
     await enviarCorreoSolicitante(datos, idSolicitud);
 
+    // Determinar categoria/subtipo a partir de modal_id (lo manda el frontend)
+    // modal_id ejemplos: acc-jenkins, acc-bitbucket, acc-k8s,
+    //                    inf-bd, inf-balanceador, inf-storage,
+    //                    sec-vault, sec-ssl, sec-k8s
+    const CATEGORIA_MAP = { acc: 'accesos', inf: 'infraestructura', sec: 'secretos' };
+    let categoria = null, subtipo = null;
+    if (datos.modal_id && datos.modal_id.includes('-')) {
+      const [pref, ...rest] = datos.modal_id.split('-');
+      categoria = CATEGORIA_MAP[pref] || null;
+      subtipo   = rest.join('-');
+    }
+
     // Crear ticket en Jira
     const jiraTicketKey = await crearTicketJira(datos, idSolicitud, {
       tipoIssue: 'Solicitud General',
       labels: ['autoservicio', 'general'],
+      categoria,
+      subtipo,
     });
 
     return res.status(200).json({

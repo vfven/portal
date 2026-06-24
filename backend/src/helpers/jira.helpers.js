@@ -9,7 +9,7 @@ const config = require('../config');
  * Crea un ticket en Jira con los datos de la solicitud.
  * Usa ADF (Atlassian Document Format) para formatear la descripción.
  */
-async function crearTicketJira(datos, idSolicitud, { tipoIssue = 'Solicitud', labels = [] } = {}) {
+async function crearTicketJira(datos, idSolicitud, { tipoIssue = 'Solicitud', labels = [], categoria = null, subtipo = null } = {}) {
   if (!config.JIRA_API_TOKEN || config.JIRA_API_TOKEN === 'tu_api_token') {
     console.log('⚠️ JIRA_API_TOKEN no configurado. Saltando creación de ticket.');
     return null;
@@ -69,8 +69,43 @@ async function crearTicketJira(datos, idSolicitud, { tipoIssue = 'Solicitud', la
           { type: 'text', text: 'Ticket generado automáticamente desde el Portal de Autoservicio · Banco BASE.' }
         ]
       },
+      // Bloque JSON consumido por Jira Automation → Jenkins.
+      // Los delimitadores AUTO_DATA_START / AUTO_DATA_END permiten extraerlo
+      // con regex en smart-values.
+      {
+        type: 'codeBlock',
+        attrs: { language: 'json' },
+        content: [{
+          type: 'text',
+          text:
+            'AUTO_DATA_START\n' +
+            JSON.stringify({
+              ticket_solicitud_id: idSolicitud,
+              categoria: categoria,
+              subtipo:   subtipo,
+              solicitante: solicitante,
+              servicio:  datos.nombreServicio,
+              fecha:     datos.fecha || new Date().toISOString(),
+              datos:     Object.fromEntries(
+                Object.entries(datos).filter(([k]) =>
+                  !['email_solicitante', 'fecha', 'nombreServicio'].includes(k)
+                )
+              ),
+            }, null, 2) +
+            '\nAUTO_DATA_END',
+        }],
+      },
     ],
   };
+
+  // Labels finales — incluyen categoria-* y subtipo-* si vienen
+  const labelsFinales = [
+    'autoservicio',
+    datos.nombreServicio.toLowerCase().replace(/\s/g, '-'),
+    ...labels,
+  ];
+  if (categoria) labelsFinales.push(`categoria-${categoria.toLowerCase()}`);
+  if (subtipo)   labelsFinales.push(`subtipo-${subtipo.toLowerCase()}`);
 
   // Payload para Jira API
   const ticketData = {
@@ -79,11 +114,7 @@ async function crearTicketJira(datos, idSolicitud, { tipoIssue = 'Solicitud', la
       issuetype:   { id: config.JIRA_TYPE_SOLICITUD },
       summary:     resumen,
       description: adfDescription,
-      labels:      [
-        'autoservicio',
-        datos.nombreServicio.toLowerCase().replace(/\s/g, '-'),
-        ...labels
-      ],
+      labels:      labelsFinales,
     },
   };
 
