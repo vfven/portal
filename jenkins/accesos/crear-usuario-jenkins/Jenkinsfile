@@ -1,0 +1,104 @@
+// ═══════════════════════════════════════════════════════════════════════════
+// CREAR USUARIO JENKINS
+// Ruta: /devsecops/portal/accesos/crear-usuario-jenkins
+// Llamado desde el hub-accesos cuando SUBTIPO=jenkins
+// ═══════════════════════════════════════════════════════════════════════════
+pipeline {
+  agent any
+
+  parameters {
+    string(name: 'TICKET',        defaultValue: '', description: 'Jira key')
+    string(name: 'USUARIO',       defaultValue: '', description: 'Usuario corporativo a crear')
+    string(name: 'HERRAMIENTA',   defaultValue: '', description: 'Jenkins DEV / QA / PRD')
+    string(name: 'JUSTIFICACION', defaultValue: '', description: 'Razón del acceso')
+    string(name: 'EMAIL',         defaultValue: '', description: 'Email del solicitante')
+    string(name: 'PERMISO',       defaultValue: '', description: 'Permisos (no usado aquí)')
+    string(name: 'REPOSITORIO',   defaultValue: '', description: '(no aplica)')
+    string(name: 'CLUSTER',       defaultValue: '', description: '(no aplica)')
+    string(name: 'NAMESPACE',     defaultValue: '', description: '(no aplica)')
+    text  (name: 'PAYLOAD_JSON',  defaultValue: '{}', description: 'JSON completo')
+  }
+
+  options {
+    timestamps()
+    buildDiscarder(logRotator(numToKeepStr: '50'))
+  }
+
+  stages {
+    stage('Validar parámetros') {
+      steps {
+        script {
+          if (!params.USUARIO?.trim())     error "USUARIO es obligatorio"
+          if (!params.HERRAMIENTA?.trim()) error "HERRAMIENTA es obligatoria"
+          echo "Creando usuario '${params.USUARIO}' en '${params.HERRAMIENTA}'"
+          currentBuild.description = "${params.TICKET} · ${params.USUARIO}@${params.HERRAMIENTA}"
+        }
+      }
+    }
+
+    stage('Determinar Jenkins destino') {
+      steps {
+        script {
+          // Mapea "Jenkins DEV" → URL real
+          def jenkinsMap = [
+            'jenkins dev': 'https://jenkins-dev.bancobase.com',
+            'jenkins qa' : 'https://jenkins-qa.bancobase.com',
+            'jenkins prd': 'https://jenkins.bancobase.com',
+          ]
+          env.JENKINS_URL_TARGET = jenkinsMap[params.HERRAMIENTA.toLowerCase()] ?: ''
+          if (!env.JENKINS_URL_TARGET) {
+            error "Herramienta no reconocida: ${params.HERRAMIENTA}"
+          }
+          echo "Target: ${env.JENKINS_URL_TARGET}"
+        }
+      }
+    }
+
+    stage('Crear usuario (programación real)') {
+      steps {
+        script {
+          // ═══════════════════════════════════════════════════════════════
+          // AQUÍ va la lógica real de creación de usuario.
+          // Ejemplos posibles:
+          //   - Llamar API de Jenkins target con admin token
+          //   - Crear entry en LDAP/AD
+          //   - Llamar a un script Ansible
+          //   - etc.
+          //
+          // Por ahora: STUB que solo imprime lo que haría.
+          // ═══════════════════════════════════════════════════════════════
+          echo "TODO: implementar creación real de usuario."
+          echo "   Usuario:    ${params.USUARIO}"
+          echo "   Jenkins:    ${env.JENKINS_URL_TARGET}"
+          echo "   Email:      ${params.EMAIL}"
+          echo "   Justif.:    ${params.JUSTIFICACION}"
+
+          // Ejemplo conceptual:
+          // withCredentials([usernamePassword(
+          //     credentialsId: 'jenkins-admin-target',
+          //     usernameVariable: 'ADM_USER',
+          //     passwordVariable: 'ADM_TOKEN')]) {
+          //   sh """
+          //     curl -k -u "\$ADM_USER:\$ADM_TOKEN" \\
+          //       -X POST "${env.JENKINS_URL_TARGET}/securityRealm/createAccount" \\
+          //       --data-urlencode "username=${params.USUARIO}" \\
+          //       --data-urlencode "fullname=${params.USUARIO}" \\
+          //       --data-urlencode "email=${params.EMAIL}" \\
+          //       --data-urlencode "password1=$(openssl rand -base64 16)" \\
+          //       --data-urlencode "password2=$0"
+          //   """
+          // }
+        }
+      }
+    }
+  }
+
+  post {
+    success {
+      echo "✅ Usuario ${params.USUARIO} creado en ${params.HERRAMIENTA}"
+    }
+    failure {
+      echo "❌ Falló la creación de ${params.USUARIO}"
+    }
+  }
+}
