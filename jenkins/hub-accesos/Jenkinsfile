@@ -2,24 +2,43 @@
 // HUB ACCESOS — Dispatcher Jira → Job específico
 // Ruta: /devsecops/portal/hub-accesos
 //
-// Recibe de Jira Automation y delega al job correspondiente:
-//   subtipo "jenkins"    → /devsecops/portal/accesos/crear-usuario-jenkins
-//   subtipo "bitbucket"  → /devsecops/portal/accesos/crear-usuario-bitbucket
-//   subtipo "kubernetes" → /devsecops/portal/accesos/crear-usuario-kubernetes
+// Disparado por Jira Automation vía Generic Webhook Trigger:
+//   POST https://<jenkins>/generic-webhook-trigger/invoke?token=<TOKEN>
+//   Body: application/json con los campos definidos en genericVariables.
+//
+// Despacha al job correspondiente según subtipo:
+//   "jenkins"    → /devsecops/portal/accesos/crear-usuario-jenkins
+//   "bitbucket"  → /devsecops/portal/accesos/crear-usuario-bitbucket
+//   "kubernetes" → /devsecops/portal/accesos/crear-usuario-kubernetes
 // ═══════════════════════════════════════════════════════════════════════════
 pipeline {
   agent any
 
-  parameters {
-    string(name: 'TICKET',       defaultValue: '',         description: 'Jira key, ej. BSJ-61')
-    string(name: 'CATEGORIA',    defaultValue: 'accesos',  description: 'Dominio')
-    string(name: 'SUBTIPO',      defaultValue: '',         description: 'jenkins | bitbucket | kubernetes (puede venir vacío)')
-    string(name: 'SOLICITANTE',  defaultValue: '',         description: 'Email del solicitante')
-    string(name: 'SUMMARY',      defaultValue: '',         description: 'Resumen del ticket')
-    string(name: 'JIRA_URL',     defaultValue: '',         description: 'URL del ticket')
-    string(name: 'CREATED',      defaultValue: '',         description: 'Timestamp creación')
-    string(name: 'PRIORIDAD',    defaultValue: '',         description: 'Low/Medium/High')
-    text  (name: 'PAYLOAD_JSON', defaultValue: '{}',       description: 'JSON con todos los datos del ticket')
+  triggers {
+    GenericTrigger(
+      genericVariables: [
+        [key: 'ticket',       value: '$.ticket',       defaultValue: ''],
+        [key: 'categoria',    value: '$.categoria',    defaultValue: 'accesos'],
+        [key: 'solicitante',  value: '$.solicitante',  defaultValue: ''],
+        [key: 'summary',      value: '$.summary',      defaultValue: ''],
+        [key: 'jiraUrl',      value: '$.jira_url',     defaultValue: ''],
+        [key: 'created',      value: '$.created',      defaultValue: ''],
+        [key: 'prioridad',    value: '$.prioridad',    defaultValue: ''],
+        [key: 'labelsRaw',    value: '$.labels',       defaultValue: ''],
+        // La descripción se obtiene en runtime vía REST API de Jira (más confiable).
+      ],
+      // Token de autenticación (debe coincidir con el que envíe Jira)
+      // Mejor: usar tokenCredentialId con un Secret Text llamado igual.
+      token: '223344',
+      // tokenCredentialId: 'hub-accesos-trigger-token',  // alternativa con credentials
+
+      printPostContent: true,
+      printContributedVariables: true,
+      silentResponse: false,
+      causeString: 'Jira → hub-accesos · ticket $ticket',
+      regexpFilterText: '$categoria',
+      regexpFilterExpression: '^accesos$'
+    )
   }
 
   options {
@@ -28,81 +47,100 @@ pipeline {
     disableConcurrentBuilds(abortPrevious: false)
   }
 
-  environment {
-    // Para futura validación de webhook (Jira manda este header)
-    EXPECTED_WEBHOOK_SECRET = credentials('portal-webhook-secret-id')   // opcional, créalo después
-  }
-
   stages {
 
     // ──────────────────────────────────────────────────────────────────────
-    stage('🐛 DEBUG · Parámetros recibidos') {
+    stage('🐛 DEBUG · Variables recibidas') {
       steps {
         script {
-          echo "════════════════════════════════════════════════"
-          echo "  Hub Accesos · Build #${env.BUILD_NUMBER}"
-          echo "════════════════════════════════════════════════"
-          echo "TICKET       : ${params.TICKET}"
-          echo "CATEGORIA    : ${params.CATEGORIA}"
-          echo "SUBTIPO      : '${params.SUBTIPO}'"
-          echo "SOLICITANTE  : ${params.SOLICITANTE}"
-          echo "SUMMARY      : ${params.SUMMARY}"
-          echo "JIRA_URL     : ${params.JIRA_URL}"
-          echo "CREATED      : ${params.CREATED}"
-          echo "PRIORIDAD    : ${params.PRIORIDAD}"
-          echo "────────────── PAYLOAD_JSON ──────────────"
-          echo params.PAYLOAD_JSON
-          echo "═════════════════════════════════════════════════"
+          echo """
+════════════════════════════════════════════════
+  Hub Accesos · Build #${env.BUILD_NUMBER}
+════════════════════════════════════════════════
+ticket        : ${env.ticket}
+categoria     : ${env.categoria}
+solicitante   : ${env.solicitante}
+summary       : ${env.summary}
+jiraUrl       : ${env.jiraUrl}
+created       : ${env.created}
+prioridad     : ${env.prioridad}
+labelsRaw     : ${env.labelsRaw}
+════════════════════════════════════════════════"""
 
-          currentBuild.description = "${params.TICKET} · ${params.SOLICITANTE}"
+          currentBuild.description = "${env.ticket} · ${env.solicitante}"
         }
       }
     }
 
     // ──────────────────────────────────────────────────────────────────────
-    stage('Parsear payload') {
+    stage('Fetch descripción desde Jira API') {
       steps {
         script {
-          // Parsear JSON
-          def json = [:]
-          try {
-            json = readJSON text: params.PAYLOAD_JSON
-          } catch (e) {
-            error "PAYLOAD_JSON no es JSON válido: ${e.message}"
+          if (!env.ticket) error "Falta TICKET key, no se puede consultar Jira"
+          env.descripcionWiki = fetchDescripcionJira(env.ticket)
+          echo "Descripción Jira (longitud: ${env.descripcionWiki.length()})"
+        }
+      }
+    }
+
+    // ──────────────────────────────────────────────────────────────────────
+    stage('Parsear descripción y determinar subtipo') {
+      steps {
+        script {
+          // La API v2 de Jira devuelve la descripción como wiki markup string,
+          // así que NO hace falta desescapar nada.
+          def desc = env.descripcionWiki ?: ''
+
+          // 1) Extraer bloque JSON entre AUTO_DATA_START y AUTO_DATA_END
+          //    (Matcher no es CPS-serializable, por eso se extrae en helper @NonCPS)
+          def payload = [:]
+          def jsonText = extraerAutoData(desc)
+          if (jsonText) {
+            try {
+              payload = readJSON text: jsonText
+              echo "✅ Payload AUTO_DATA parseado OK"
+            } catch (e) {
+              echo "⚠️ Bloque AUTO_DATA encontrado pero JSON inválido: ${e.message}"
+              echo "Contenido extraído:\n${jsonText}"
+            }
+          } else {
+            echo "⚠️ No se encontró bloque AUTO_DATA en la descripción"
+            echo "─── desc (primeros 800 chars) ───"
+            echo desc.length() > 800 ? desc.substring(0, 800) : desc
           }
 
-          // Determinar subtipo (varias fuentes en orden de prioridad)
-          def subtipo = (params.SUBTIPO ?: '').trim().toLowerCase()
+          // 2) Variables granulares (de payload o vacíos)
+          def datos = payload?.datos ?: [:]
+          env.SERVICIO       = (payload.servicio    ?: '').toString()
+          env.USUARIO        = (datos.usuario       ?: '').toString()
+          env.HERRAMIENTA    = (datos.herramienta   ?: '').toString()
+          env.JUSTIFICACION  = (datos.justificacion ?: '').toString()
+          env.EMAIL_USUARIO  = (datos.email         ?: env.solicitante ?: '').toString()
+          env.REPOSITORIO    = (datos.repositorio   ?: '').toString()
+          env.PERMISO        = (datos.permiso       ?: '').toString()
+          env.CLUSTER        = (datos.cluster       ?: '').toString()
+          env.NAMESPACE_K8S  = (datos.namespace     ?: '').toString()
+          env.PAYLOAD_JSON   = jsonText ?: '{}'   // reusamos el string original (evita StackOverflow con net.sf.json)
 
-          if (!subtipo) subtipo = (json.subtipo ?: '').toString().toLowerCase()
+          // 3) Subtipo: desde labels primero, luego desde servicio
+          def subtipo = extraerSubtipoDeLabels(env.labelsRaw ?: '')
 
-          // Fallback: deducir desde "servicio" del payload
           if (!subtipo) {
-            def servicio = (json.servicio ?: '').toString().toLowerCase()
-            if      (servicio.contains('jenkins'))     subtipo = 'jenkins'
-            else if (servicio.contains('bitbucket'))   subtipo = 'bitbucket'
-            else if (servicio.contains('kubernetes') ||
-                     servicio.contains('k8s'))         subtipo = 'kubernetes'
+            def s = env.SERVICIO.toLowerCase()
+            if      (s.contains('jenkins'))                          subtipo = 'jenkins'
+            else if (s.contains('bitbucket'))                        subtipo = 'bitbucket'
+            else if (s.contains('kubernetes') || s.contains('k8s'))  subtipo = 'kubernetes'
           }
 
           if (!subtipo) {
-            error "No se pudo determinar el SUBTIPO (Jenkins/Bitbucket/Kubernetes) ni desde params ni desde payload.servicio"
+            error "No se pudo determinar el SUBTIPO (jenkins/bitbucket/kubernetes) ni desde labels ni desde servicio."
           }
+          env.SUBTIPO_FINAL = subtipo
 
-          // Guardar para los siguientes stages
-          env.SUBTIPO_FINAL  = subtipo
-          env.USUARIO        = (json.datos?.usuario        ?: '').toString()
-          env.HERRAMIENTA    = (json.datos?.herramienta    ?: '').toString()
-          env.JUSTIFICACION  = (json.datos?.justificacion  ?: '').toString()
-          env.REPOSITORIO    = (json.datos?.repositorio    ?: '').toString()
-          env.PERMISO        = (json.datos?.permiso        ?: '').toString()
-          env.CLUSTER        = (json.datos?.cluster        ?: '').toString()
-          env.NAMESPACE_K8S  = (json.datos?.namespace      ?: '').toString()
-          env.EMAIL_USUARIO  = (json.datos?.email          ?: params.SOLICITANTE).toString()
-
-          echo "→ Subtipo final: ${env.SUBTIPO_FINAL}"
-          echo "→ Usuario:       ${env.USUARIO}"
-          echo "→ Herramienta:   ${env.HERRAMIENTA}"
+          echo "→ Subtipo final : ${env.SUBTIPO_FINAL}"
+          echo "→ Servicio       : ${env.SERVICIO}"
+          echo "→ Usuario        : ${env.USUARIO}"
+          echo "→ Herramienta    : ${env.HERRAMIENTA}"
         }
       }
     }
@@ -111,8 +149,8 @@ pipeline {
     stage('Notificar a Jira: en proceso') {
       steps {
         script {
-          comentarJira(params.TICKET,
-            "🔧 Hub Jenkins recibió la solicitud. Despachando a job *crear-usuario-${env.SUBTIPO_FINAL}*. " +
+          comentarJira(env.ticket,
+            "🔧 Hub Jenkins recibió la solicitud. Despachando a job *crear-usuario-${env.SUBTIPO_FINAL}*.\n" +
             "Build: ${env.BUILD_URL}"
           )
         }
@@ -124,10 +162,10 @@ pipeline {
       steps {
         script {
           def jobMap = [
-            'jenkins'   : '/devsecops/portal/accesos/crear-usuario-jenkins',
-            'bitbucket' : '/devsecops/portal/accesos/crear-usuario-bitbucket',
-            'kubernetes': '/devsecops/portal/accesos/crear-usuario-kubernetes',
-            'k8s'       : '/devsecops/portal/accesos/crear-usuario-kubernetes',
+            'jenkins'   : '/DevSecOps/Portal/accesos/crear-usuario-jenkins',
+            'bitbucket' : '/DevSecOps/Portal/accesos/crear-usuario-bitbucket',
+            'kubernetes': '/DevSecOps/Portal/accesos/crear-usuario-kubernetes',
+            'k8s'       : '/DevSecOps/Portal/accesos/crear-usuario-kubernetes',
           ]
           def jobName = jobMap[env.SUBTIPO_FINAL]
           if (!jobName) {
@@ -138,18 +176,18 @@ pipeline {
           def downstream = build(
             job: jobName,
             wait: true,
-            propagate: false,        // capturamos el resultado para reportar
+            propagate: false,
             parameters: [
-              string(name: 'TICKET',       value: params.TICKET),
-              string(name: 'USUARIO',      value: env.USUARIO),
-              string(name: 'HERRAMIENTA',  value: env.HERRAMIENTA),
-              string(name: 'REPOSITORIO',  value: env.REPOSITORIO),
-              string(name: 'PERMISO',      value: env.PERMISO),
-              string(name: 'CLUSTER',      value: env.CLUSTER),
-              string(name: 'NAMESPACE',    value: env.NAMESPACE_K8S),
-              string(name: 'JUSTIFICACION',value: env.JUSTIFICACION),
-              string(name: 'EMAIL',        value: env.EMAIL_USUARIO),
-              text  (name: 'PAYLOAD_JSON', value: params.PAYLOAD_JSON),
+              string(name: 'TICKET',        value: env.ticket ?: ''),
+              string(name: 'USUARIO',       value: env.USUARIO ?: ''),
+              string(name: 'HERRAMIENTA',   value: env.HERRAMIENTA ?: ''),
+              string(name: 'REPOSITORIO',   value: env.REPOSITORIO ?: ''),
+              string(name: 'PERMISO',       value: env.PERMISO ?: ''),
+              string(name: 'CLUSTER',       value: env.CLUSTER ?: ''),
+              string(name: 'NAMESPACE',     value: env.NAMESPACE_K8S ?: ''),
+              string(name: 'JUSTIFICACION', value: env.JUSTIFICACION ?: ''),
+              string(name: 'EMAIL',         value: env.EMAIL_USUARIO ?: env.solicitante ?: ''),
+              text  (name: 'PAYLOAD_JSON',  value: env.PAYLOAD_JSON ?: '{}'),
             ]
           )
 
@@ -169,17 +207,15 @@ pipeline {
   post {
     success {
       script {
-        comentarJira(params.TICKET,
+        comentarJira(env.ticket,
           "✅ Acceso ${env.SUBTIPO_FINAL} provisionado correctamente para *${env.USUARIO}*.\n" +
           "Build: ${env.BUILD_URL}\nJob hijo: ${env.DOWNSTREAM_URL ?: 'N/A'}"
         )
-        // (Opcional) transicionar a Done en Jira
-        // transicionarJira(params.TICKET, 'Done')
       }
     }
     failure {
       script {
-        comentarJira(params.TICKET,
+        comentarJira(env.ticket,
           "❌ Falló la provisión de acceso ${env.SUBTIPO_FINAL ?: '(desconocido)'}.\n" +
           "Build: ${env.BUILD_URL}\nRevisar logs."
         )
@@ -191,13 +227,57 @@ pipeline {
 // ═══════════════════════════════════════════════════════════════════════════
 // HELPERS
 // ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Extrae el bloque JSON entre AUTO_DATA_START y AUTO_DATA_END.
+ * Marcado @NonCPS porque el Matcher no es serializable por el motor CPS de Jenkins.
+ */
+@NonCPS
+def extraerAutoData(String texto) {
+  def m = (texto =~ /(?s)AUTO_DATA_START\s*(\{.*?\})\s*AUTO_DATA_END/)
+  return m.find() ? m.group(1) : null
+}
+
+/**
+ * Extrae el subtipo a partir de una label "subtipo-jenkins" / "subtipo-bitbucket" / etc.
+ */
+@NonCPS
+def extraerSubtipoDeLabels(String labelsRaw) {
+  def m = (labelsRaw =~ /subtipo-([a-z0-9_-]+)/)
+  return m.find() ? m.group(1).toLowerCase() : ''
+}
+
+/**
+ * Obtiene la descripción del ticket Jira como wiki markup string
+ * usando la API v2 (que no devuelve ADF JSON, sino texto plano con markup).
+ */
+def fetchDescripcionJira(String ticketKey) {
+  def desc = ''
+  withCredentials([usernamePassword(
+      credentialsId: 'jira-api-credentials',
+      usernameVariable: 'JIRA_USER',
+      passwordVariable: 'JIRA_TOKEN')]) {
+    def rawJson = sh(
+      returnStdout: true,
+      script: """
+        curl -k -s -u "\$JIRA_USER:\$JIRA_TOKEN" \\
+          -H "Accept: application/json" \\
+          "https://bancobase.atlassian.net/rest/api/2/issue/${ticketKey}?fields=description"
+      """
+    ).trim()
+    def issue = readJSON text: rawJson
+    desc = (issue?.fields?.description ?: '').toString()
+  }
+  return desc
+}
+
 def comentarJira(String ticketKey, String mensaje) {
   if (!ticketKey) {
-    echo "⚠️ Sin TICKET key, no se comenta en Jira."
+    echo "⚠️ Sin ticket key, no se comenta en Jira."
     return
   }
   withCredentials([usernamePassword(
-      credentialsId: 'jira-api-credentials',     // usuario:token de Jira
+      credentialsId: 'jira-api-credentials',
       usernameVariable: 'JIRA_USER',
       passwordVariable: 'JIRA_TOKEN')]) {
     def body = """{
