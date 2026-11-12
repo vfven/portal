@@ -1,0 +1,33 @@
+# Patch de QA.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: serviceportal-backend
+spec:
+  template:
+    spec:
+      containers:
+        - name: serviceportal-backend
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              cpu: "300m"
+              memory: "512Mi"
+          env:
+            - name: NODE_ENV
+              value: "production"
+            - name: DB_HOST
+              value: "qa-database.example.com"
+            - name: DB_PORT
+              value: "5432"
+            - name: DB_NAME
+              value: "appdb_qa"
+            - name: DB_USER
+              value: "appuser"
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: serviceportal-backend-secrets
+                  key: db-password

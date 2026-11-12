@@ -1,0 +1,600 @@
+# app-source-code/bitbucket-pipelines.yml
+image: atlassian/default-image:3
+
+# =============================================================================
+# DEFINICIONES GLOBALES Y ANCHORS
+# =============================================================================
+definitions:
+  services:
+    docker:
+      memory: 2048
+  # Variables específicas de la aplicación
+  variables:
+    - name: APP_NAME
+      value: "mi-aplicacion"
+    - name: APP_PORT
+      value: "3000"
+    - name: DEFAULT_ENV
+      value: "main"
+    - name: DEFAULT_IMAGE_TAG
+      value: "${BITBUCKET_BUILD_NUMBER}"
+
+  yaml-anchors:
+    # ========================================================================
+    # ANCHORS REUSABLES
+    # ========================================================================
+    # Anchor para conectar con repo externo y crear artefactos
+    - &init-submodule
+        name: "Initialize Submodule with Artifact"
+        script:
+          - echo "Inicializando submódulo y creando artefacto..."
+          - git submodule update --init --recursive --remote --force
+          - echo "Submódulo inicializado correctamente"
+          - ls -la infra-cicd-tools/
+        artifacts:
+          - infra-cicd-tools/**
+
+    # Anchor englobal variables
+    - &load-env-vars
+        name: "Load Environment Variables"
+        script:
+          - echo "Cargando variables personalizadas del .env"
+          #- grep -v '^#' .env | sed 's/^/export /' > export_vars.sh
+          #- head -n 10 export_vars.sh
+          - chmod +x infra-cicd-tools/scripts/utils/load-env.sh
+          - ./infra-cicd-tools/scripts/utils/load-env.sh "${ENVIRONMENT:-development}"
+        artifacts:
+          - export_vars.sh
+
+    # ========================================================================
+    # ENVIRONMENT SETUP
+    # ========================================================================
+
+    # Anchor para setup de desarrollo (SIN submodule update)
+    - &setup-dev-environment
+        name: "Setup Dev Environment"
+        script:
+          - source export_vars.sh
+          - echo "--- Configurando entorno DEVELOPMENT ---"
+          - export $(cat custom-vars.env | xargs)
+          - export ENVIRONMENT="${DEV_ENVIRONMENT:-development}"
+          - export IMAGE_TAG="${DEV_IMAGE_TAG:-${BITBUCKET_BUILD_NUMBER}}"
+          - export K8S_NAMESPACE="${DEV_K8S_NAMESPACE:-dev-namespace}"
+          - export K8S_REPLICAS="${DEV_K8S_REPLICAS:-1}"
+          - export KUBE_CONTEXT="${RANCHER_KUBE_CONTEXT:-rancher-desktop}"
+          - echo " Variables DEVELOPMENT:"
+          - echo "   APP_NAME=$APP_NAME"
+          - echo "   ENVIRONMENT=$ENVIRONMENT"
+          - echo "   IMAGE_TAG=$IMAGE_TAG"
+          - echo "   K8S_NAMESPACE=$K8S_NAMESPACE"
+          - echo "   KUBE_CONTEXT=$KUBE_CONTEXT"
+          - chmod +x infra-cicd-tools/scripts/utils/setup.sh
+          - infra-cicd-tools/scripts/utils/setup.sh
+          - pwd
+
+
+    # Anchor para setup de producción (SIN submodule update)
+    - &setup-prod-environment
+        name: "Setup Prod Environment"
+        script:
+          - source export_vars.sh
+          - echo "--- Configurando entorno PRODUCTION ---"
+          - export $(cat custom-vars.env | xargs)
+          - export ENVIRONMENT="${PROD_ENVIRONMENT:-production}"
+          - export IMAGE_TAG="${PROD_IMAGE_TAG:-${BITBUCKET_BUILD_NUMBER}}"
+          - export K8S_NAMESPACE="${PROD_K8S_NAMESPACE:-prod-namespace}"
+          - export K8S_REPLICAS="${PROD_K8S_REPLICAS:-3}"
+          - export AWS_REGION="${EKS_AWS_REGION:-us-east-1}"
+          - export EKS_CLUSTER_NAME="${EKS_CLUSTER_NAME:-my-eks-cluster}"
+          - echo " Variables PRODUCTION:"
+          - echo "   APP_NAME=$APP_NAME"
+          - echo "   ENVIRONMENT=$ENVIRONMENT"
+          - echo "   IMAGE_TAG=$IMAGE_TAG"
+          - echo "   K8S_NAMESPACE=$K8S_NAMESPACE"
+          - echo "   EKS_CLUSTER_NAME=$EKS_CLUSTER_NAME"
+          - chmod +x infra-cicd-tools/scripts/utils/setup.sh
+          - infra-cicd-tools/scripts/utils/setup.sh
+          - pwd
+
+    # ========================================================================
+    # DOCKER IMAGE
+    # ========================================================================
+
+    # Anchor para build de Docker (SIN submodule update)
+    - &build-docker-image
+        name: "Build Docker Image"
+        services:
+          - docker
+        script:
+          - source export_vars.sh
+          - chmod +x infra-cicd-tools/scripts/jira/*.sh
+          - chmod +x infra-cicd-tools/scripts/docker/build-image.sh
+          - ./infra-cicd-tools/scripts/docker/build-image.sh 2>&1 | tee build-docker-image.log
+        artifacts: 
+          - docker.tar
+          - build-docker-image.log
+          - docker-image-info.txt
+
+    # Anchor para push a ECR (SIN submodule update)
+    - &push-to-ecr
+        name: "Push to ECR"
+        image: cbytedigital/aws-cli-jq
+        services:
+          - docker
+        script:
+          #- apt-get update && apt-get install -y python3-pip
+          #- pip3 install awscli
+          - source export_vars.sh
+          - docker load -i docker.tar
+          - chmod +x infra-cicd-tools/scripts/jira/*.sh
+          - chmod +x infra-cicd-tools/scripts/docker/push-to-ecr.sh
+          - ./infra-cicd-tools/scripts/docker/push-to-ecr.sh 2>&1 | tee push-to-ecr.log
+        on-fail:
+          strategy: ignore
+        artifacts: 
+          - push-to-ecr.log
+          - ecr-push-info.txt
+
+    # ========================================================================
+    # K8S / EKS
+    # ========================================================================
+
+    # Anchor para generar manifiestos Kubernetes (SIN submodule update)
+    - &generate-k8s-manifests
+        name: "Generate K8s Manifests"
+        services:
+          - docker
+        script:
+          - source export_vars.sh
+          - source ecr-push-info.txt
+          - echo "Instalando Kustomize..."
+          - curl -s "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh" | bash
+          - mv kustomize /usr/local/bin/
+          - chmod +x /usr/local/bin/kustomize
+          - kustomize version
+          - chmod +x infra-cicd-tools/scripts/kubernetes/generate-manifests.sh
+          - AUTO_DEPLOY=false
+          - ./infra-cicd-tools/scripts/kubernetes/generate-manifests.sh 2>&1 | tee generate-k8s-manifests.log
+          - ls -lRt /tmp/kubernetes/
+          - cat /tmp/kubernetes/overlays/dev/values.env
+        artifacts:
+          - generate-k8s-manifests.log
+          - artifacts/**
+          - overlays/**
+
+    # Anchor para deploy a Rancher (SIN submodule update)
+    - &deploy-to-rancher
+        name: "Deploy to Rancher"
+        script:
+          - source export_vars.sh
+          - chmod +x infra-cicd-tools/scripts/kubernetes/deploy-to-rancher.sh
+          - |
+            exec > >(tee deploy-to-rancher.log) 2>&1
+            infra-cicd-tools/scripts/kubernetes/deploy-to-rancher.sh "$APP_NAME" "$ENVIRONMENT" "$IMAGE_TAG"
+        on-fail:
+          strategy: ignore
+        artifacts: 
+          - deploy-to-rancher.log
+
+    # Anchor para deploy a EKS (SIN submodule update)
+    - &deploy-to-eks
+        name: "Deploy to EKS"
+        script:
+          - source export_vars.sh
+          - chmod +x infra-cicd-tools/scripts/jira/*.sh
+          - chmod +x infra-cicd-tools/scripts/kubernetes/deploy-to-eks.sh
+          - |
+            exec > >(tee deploy-to-eks.log) 2>&1
+            infra-cicd-tools/scripts/kubernetes/deploy-to-eks.sh "$APP_NAME" "$ENVIRONMENT" "$IMAGE_TAG"
+        artifacts: 
+          - deploy-to-eks.log
+
+    # ========================================================================
+    # SECURITY
+    # ========================================================================
+    # Anchor para escanear imagen con tenable
+    - &hashicorp-value
+        name: "Get Secret"
+        script:
+          - source export_vars.sh
+          - chmod +x infra-cicd-tools/scripts/security/hashicorp-vars.sh
+          - ./infra-cicd-tools/scripts/security/hashicorp-vars.sh 2>&1 | tee hashicorp.log
+        artifacts: 
+          - secret.enc
+          - export_vars.sh
+          - hashicorp.log
+
+    # Anchor para escanear imagen con tenable
+    - &tenable-scan-image
+        name: "Tenable Scan Image"
+        services:
+          - docker
+        script:
+          - docker load -i docker.tar 
+          - source export_vars.sh
+          - chmod +x infra-cicd-tools/scripts/jira/*.sh
+          - chmod +x infra-cicd-tools/scripts/security/tenable-scan.sh
+          - ./infra-cicd-tools/scripts/security/tenable-scan.sh 2>&1 | tee tenable-scan.log
+        artifacts: 
+          - tenable-scan.log
+
+    # Anchor para escanear codigo con sonarqube
+    - &sonarqube-scan-code
+        name: "Sonarqube Scan Code"
+        image: sonarsource/sonar-scanner-cli:latest
+        services:
+          - docker
+        script:
+          - source export_vars.sh
+          - chmod +x infra-cicd-tools/scripts/jira/*.sh
+          - chmod +x infra-cicd-tools/scripts/security/sonarqube.sh
+          - ./infra-cicd-tools/scripts/security/sonarqube.sh 2>&1 | tee sonarqube.log
+        artifacts: 
+          - sonarqube.log
+
+    # ========================================================================
+    # JIRA
+    # ========================================================================
+
+    # Anchor para detección de claves JIRA
+    - &comment-jira
+        name: "Comment Jira"
+        script:
+          - source export_vars.sh
+          - chmod +x infra-cicd-tools/scripts/jira/*.sh
+          - |
+            exec > >(tee comment-jira.log) 2>&1
+            infra-cicd-tools/scripts/jira/detect-jira-keys.sh
+        on-fail:
+          strategy: ignore
+        artifacts: 
+          - comment-jira.log
+
+    # Anchor para comentar en JIRA
+    - &comment-jira_old
+        name: "Comment on JIRA"
+        script:
+          - source export_vars.sh
+          - chmod +x infra-cicd-tools/scripts/jira/comment-jira.sh
+          - |
+            exec > >(tee comment-jira.log) 2>&1
+            infra-cicd-tools/scripts/jira/comment-jira.sh "$JIRA_ISSUE_KEY" "$JIRA_COMMENT"
+        artifacts: 
+          - comment-jira
+
+    - &jira-automation
+        name: "🎯 JIRA DevOps Automation"
+        script:
+            - source export_vars.sh
+            - chmod +x infra-cicd-tools/scripts/jira/*.sh
+            - ./infra-cicd-tools/scripts/jira/devops-automation.sh
+        artifacts: 
+          - comment-jira
+
+    - &jira-diagnostic
+        name: "JIRA diagnosic"
+        script:
+            - source export_vars.sh
+            - chmod +x infra-cicd-tools/scripts/jira/*.sh
+            - ./infra-cicd-tools/scripts/jira/jira-diagnostic.sh
+        artifacts: 
+          - comment-jira
+    
+    # ========================================================================
+    # SUCCESS & FAILURE NOTIFICATIONS
+    # ========================================================================
+
+    # Anchor para notificación de éxito
+    - &notify-success
+        name: "Notify Success"
+        script:
+          - echo "✅ Operation completed successfully!"
+          - echo "Application= ${APP_NAME}"
+          - echo "Environment= ${ENVIRONMENT}"
+          - echo "Image Tag= ${IMAGE_TAG}"
+
+    - &notify-failure
+        name: "Notify Failure"
+        script:
+          - |
+            echo "📣 Recolectando logs de todos lSos steps..."
+            LOGS=""
+            for f in *.log; do
+              LOGS="${LOGS}\n--- ${f} ---\n$(cat "$f")";
+            done
+            if [ -n "$LOGS" ]; then
+              curl -s -X POST "https://webhook.site/f99c19fe-d8c5-4227-a3c4-ee7f0ae652ef" \
+                -H 'Content-Type: application/json' \
+                -d "{\"text\": \"🚨 Pipeline failed. Logs:\n$LOGS\"}";
+            fi
+
+    # ========================================================================
+    # SUCCESS & FAILURE NOTIFICATIONS
+    # ========================================================================
+    # Step que recolecta y convierte logs SIEMPRE (aunque falle algo antes)
+    - &collect-logs
+        name: "Collect Logs"
+        script:
+          - PIPELINE_LOG="bitbucket-${BITBUCKET_REPO_SLUG}-${BITBUCKET_BUILD_NUMBER}.log"
+          - PIPELINE_HTML="bitbucket-${BITBUCKET_REPO_SLUG}-${BITBUCKET_BUILD_NUMBER}.html"
+
+          # Unir todos los logs individuales
+          - cat *.log > "$PIPELINE_LOG"
+
+          # Convertir a HTML con colores
+          #- npx ansi-to-html --newline < "$PIPELINE_LOG" > "$PIPELINE_HTML"
+          - |
+            {
+              echo "<html><body><pre style='font-family: monospace; white-space: pre-wrap; background:#1e1e1e; color:#dcdcdc; padding:10px;'>"
+              npx ansi-to-html < "$PIPELINE_LOG"
+              echo "</pre></body></html>"
+            } > "$PIPELINE_HTML"  
+
+        artifacts:
+          - bitbucket-*.log
+          - bitbucket-*.html
+
+      # Step único de notificación (correo/webhook)
+    - &notify_old
+        name: "Notify Result"
+        script:
+          - PIPELINE_LOG="bitbucket-${BITBUCKET_REPO_SLUG}-${BITBUCKET_BUILD_NUMBER}.log"
+          - |
+            # Determinar status del pipeline
+            if grep -q "Command failed" "$PIPELINE_LOG"; then
+              STATUS="failure"
+              echo "❌ Pipeline FAILURE"
+            else
+              STATUS="success"
+              echo "✅ Pipeline SUCCESS"
+            fi
+
+            # Mandar correo o webhook
+            curl -X POST -H 'Content-Type: application/json' \
+              -d "{\"status\":\"$STATUS\",\"run\":\"${BITBUCKET_BUILD_NUMBER}\"}" \
+              https://webhook.site/f99c19fe-d8c5-4227-a3c4-ee7f0ae652ef
+
+      # Step único de notificación (correo/webhook)
+    - &notify
+        name: "Notify Result"
+        script:
+          - PIPELINE_LOG="bitbucket-${BITBUCKET_REPO_SLUG}-${BITBUCKET_BUILD_NUMBER}.log"
+          - |
+            # Determinar status del pipeline
+            if grep -q "Command failed" "$PIPELINE_LOG"; then
+              STATUS="failure"
+              echo "❌ Pipeline FAILURE"
+            else
+              STATUS="success"
+              echo "✅ Pipeline SUCCESS"
+            fi
+
+            # Construir URL del artefacto en Bitbucket
+            ARTIFACT_URL="https://api.bitbucket.org/2.0/repositories/${BITBUCKET_WORKSPACE}/${BITBUCKET_REPO_SLUG}/pipelines/${BITBUCKET_PIPELINE_UUID}/steps/${BITBUCKET_STEP_UUID}/artifacts/${PIPELINE_LOG}"
+
+            # Mandar webhook a Google Chat
+            curl -X POST "https://chat.googleapis.com/v1/spaces/AAQAqKIPdhM/messages?key=AIzaSyDdI0hCZtE6vySjMm-WEfRq3CPzqKqqsHI&token=O_SdO80UHktZobL__l50Ihvkan-eGr4UHdhtIWw-09c" \
+              -H "Content-Type: application/json" \
+              -d "{
+                    \"cards\": [{
+                      \"header\": {
+                        \"title\": \"Pipeline Notification\",
+                        \"subtitle\": \"Build #${BITBUCKET_BUILD_NUMBER}\"
+                      },
+                      \"sections\": [{
+                        \"widgets\": [
+                          {
+                            \"textParagraph\": {
+                              \"text\": \"<b>Resultado:</b> ${STATUS}<br><b>Pipeline:</b> #${BITBUCKET_BUILD_NUMBER}\"
+                            }
+                          },
+                          {
+                            \"buttons\": [{
+                              \"textButton\": {
+                                \"text\": \"📥 Descargar Log\",
+                                \"onClick\": {
+                                  \"openLink\": { \"url\": \"${ARTIFACT_URL}\" }
+                                }
+                              }
+                            }]
+                          }
+                        ]
+                      }]
+                    }]
+                  }"
+        artifacts:
+         - bitbucket-*.log
+         - bitbucket-*.html
+
+    - &notify_jira
+        name: "Notify Result"
+        script:
+          - |
+            curl -s -D- -u "${JIRA_USERNAME}:${JIRA_API_TOKEN}" \
+              -X POST \
+              -H "X-Atlassian-Token: no-check" \
+              -F "file=@${PIPELINE_HTML}" \
+              "https://bancobase.atlassian.net/rest/api/issue/JD-179/attachments"
+          - echo "Se agrega log a issue"
+
+    # ========================================================================
+    # ANCHOR: Commit Artifacts to Repo
+    # ========================================================================
+    - &commit-artifacts
+        name: "Commit and Push Generated Artifacts"
+        script:
+          - echo "🔧 Configurando Git para commit automático..."
+          - |
+            AUTHOR_NAME=$(git log -1 --pretty=format:'%an')
+            AUTHOR_EMAIL=$(git log -1 --pretty=format:'%ae')
+
+            git config --global user.name "${AUTHOR_NAME:-Bitbucket Pipelines}"
+            git config --global user.email "${AUTHOR_EMAIL:-ci@bancobase.com}"
+
+          - echo "📦 Preparando directorio de manifiestos..."
+          - mkdir -p kubernetes/generated
+          - cp -R kubernetes/overlays/* kubernetes/generated/ || echo "No se encontraron manifiestos para copiar."
+
+          - echo "📝 Commit de manifiestos generados..."
+          - git add kubernetes/generated/ || true
+          - git commit -m "🤖 Auto-generated K8s manifests for auto" || echo "Nada que commitear."
+          
+          - echo "🚀 Haciendo push al mismo repositorio..."
+          - git push "https://x-token-auth:${BITBUCKET_TOKEN}@bitbucket.org/${BITBUCKET_REPO_FULL_NAME}.git" HEAD:${BITBUCKET_BRANCH} || echo "⚠️ No se pudo hacer push (posible política protegida de rama)."
+
+        artifacts:
+          - kubernetes/generated/**
+
+# =============================================================================
+# PIPELINES PARA LA APLICACIÓN - CON ARTEFACTOS
+# =============================================================================
+pipelines:
+  branches:
+    develop:
+      - step: *init-submodule           # ← SOLO UNA VEZ con artefacto
+      - step: *load-env-vars            # ← Recibe el artefacto automáticamente
+      - step: *hashicorp-value          # ← Recibe el artefacto automáticamente
+      - step: *setup-dev-environment    # ← Recibe el artefacto automáticamente
+      - step: *build-docker-image       # ← Recibe el artefacto automáticamente
+      - step: *tenable-scan-image       # ← Recibe el artefacto automáticamente
+      - step: *sonarqube-scan-code      # ← Recibe el artefacto automáticamente
+      #- step: *jira-diagnostic          # ← Valida los valores en jira
+      - step: *push-to-ecr              # ← Recibe el artefacto automáticamente
+      - step: *generate-k8s-manifests   # ← Recibe el artefacto automáticamente
+      #- step: *commit-artifacts
+      #- step: *deploy-to-rancher        # ← Recibe el artefacto automáticamente
+      #- step: *comment-jira
+      #- step: *notify
+      #- step: 
+      #    <<: *collect-logs
+      #- step: 
+      #    <<: *notify
+      #- step: *notify_jira
+
+    main:
+      - step: *init-submodule           # ← SOLO UNA VEZ con artefacto
+      - step: *setup-prod-environment   # ← Recibe el artefacto automáticamente
+      - step: *build-docker-image       # ← Recibe el artefacto automáticamente
+      - step: *push-to-ecr              # ← Recibe el artefacto automáticamente
+      - step: *generate-k8s-manifests   # ← Recibe el artefacto automáticamente
+      - step: *deploy-to-eks            # ← Recibe el artefacto automáticamente
+      - step:
+          name: "Comment on JIRA"
+          script:
+            - export JIRA_ISSUE_KEY=$(infra-cicd-tools/scripts/jira/detect-jira-keys.sh || echo "PROJ-123")
+            - export JIRA_COMMENT="Deployed to production successfully! Build ${BITBUCKET_BUILD_NUMBER}"
+            - chmod +x infra-cicd-tools/scripts/jira/comment-jira.sh
+            - infra-cicd-tools/scripts/jira/comment-jira.sh "$JIRA_ISSUE_KEY" "$JIRA_COMMENT"
+      - step: *notify-success           # ← Recibe el artefacto automáticamente
+
+  custom:
+    deploy-with-environment:
+      - variables:
+        - name: ENVIRONMENT
+          default: "dev"
+          allowed-values:
+            - dev
+            - qa
+            - prod
+            - stage
+            - fix
+      - step: *init-submodule
+      - step: *load-env-vars
+      #- step: *hashicorp-value
+      #- step: *setup-dev-environment
+      #- step: *build-docker-image
+      #- step: *tenable-scan-image
+      #- step: *jira-diagnostic
+      #- step: *push-to-ecr
+      #- step: *generate-k8s-manifests
+      #- step: *commit-artifacts
+      #- step: *deploy-to-rancher
+    docker-build:
+      - variables:
+          - name: APP_NAME
+            value: "mi-aplicacion"
+          - name: IMAGE_TAG
+            value: "latest"
+      - step: *init-submodule           # ← SOLO UNA VEZ con artefacto
+      - step: *load-env-vars
+      - step: *setup-dev-environment    # ← Recibe el artefacto automáticamente
+      - step: *build-docker-image       # ← Recibe el artefacto automáticamente
+
+    docker-ecr:
+      - variables:
+          - name: APP_NAME
+            value: "mi-aplicacion"
+          - name: IMAGE_TAG
+            value: "${BITBUCKET_BUILD_NUMBER}"
+      - step: *init-submodule           # ← SOLO UNA VEZ con artefacto
+      - step: *load-env-vars
+      - step: *setup-dev-environment    # ← Recibe el artefacto automáticamente
+      - step: *build-docker-image       # ← Recibe el artefacto automáticamente
+      - step: *push-to-ecr              # ← Recibe el artefacto automáticamente
+
+    jira-comment:
+      - variables:
+          - name: JIRA_ISSUE_KEY
+            value: "PROJ-123"
+          - name: JIRA_COMMENT
+            value: "Comentario automático desde Bitbucket Pipeline"
+      - step: *init-submodule           # ← SOLO UNA VEZ con artefacto
+      - step: *load-env-vars
+      - step: *comment-jira
+      #- step: *comment-jira
+      #- step:
+      #    name: "Comment on JIRA"
+      #    script:
+      #      - chmod +x infra-cicd-tools/scripts/jira/comment-jira.sh
+      #      - infra-cicd-tools/scripts/jira/comment-jira.sh "$JIRA_ISSUE_KEY" "$JIRA_COMMENT"
+      
+    jira-creation-subtask:
+      - variables:
+          - name: JIRA_PROJECT_KEY
+            value: "DEVOPS"
+          - name: REPO_NAME
+            value: "gfb_repodeprueba"
+      - step: *init-submodule
+      - step: *load-env-vars
+      - step: *jira-automation
+
+    debug-environment:
+      - step: *init-submodule           # ← SOLO UNA VEZ con artefacto
+      - step: *load-env-vars
+      - step:
+          name: "Debug Environment"
+          script:
+            - echo "=== DEBUG INFORMATION ==="
+            - echo "Bitbucket Variables:"
+            - echo "BITBUCKET_BUILD_NUMBER = ${BITBUCKET_BUILD_NUMBER}"
+            - echo "BITBUCKET_COMMIT = ${BITBUCKET_COMMIT}"
+            - echo "BITBUCKET_BRANCH = ${BITBUCKET_BRANCH}"
+            - echo "Application Variables:"
+            - echo "APP_NAME = $APP_NAME"
+            - echo "APP_PORT = $APP_PORT"
+            - echo "Submodule Content (via artefacto):"
+            - ls -la infra-cicd-tools/scripts/
+            - echo "=== DEBUG COMPLETED ==="
+
+    full-pipeline:
+      - step: *init-submodule           # ← SOLO UNA VEZ con artefacto
+      - step: *setup-prod-environment   # ← Recibe el artefacto automáticamente
+      #- step: *detect-jira-keys         # ← Recibe el artefacto automáticamente
+      - step: *build-docker-image       # ← Recibe el artefacto automáticamente
+      - step: *push-to-ecr              # ← Recibe el artefacto automáticamente
+      - step: *generate-k8s-manifests   # ← Recibe el artefacto automáticamente
+      - step: *deploy-to-eks            # ← Recibe el artefacto automáticamente
+      - step:
+          name: "Comment on JIRA"
+          script:
+            - export JIRA_ISSUE_KEY=$(infra-cicd-tools/scripts/jira/detect-jira-keys.sh || echo "PROJ-123")
+            - export JIRA_COMMENT="Full pipeline completed successfully! Build ${BITBUCKET_BUILD_NUMBER}"
+            - chmod +x infra-cicd-tools/scripts/jira/comment-jira.sh
+            - infra-cicd-tools/scripts/jira/comment-jira.sh "$JIRA_ISSUE_KEY" "$JIRA_COMMENT"
+      - step: *notify-success           # ← Recibe el artefacto automáticamente
+
+    debug:
+      - step: *init-submodule           # ← SOLO UNA VEZ con artefacto
+      - step: *load-env-vars            # ← Recibe el artefacto automáticamente
+      - step: *setup-dev-environment    # ← Recibe el artefacto automáticamente
+      - step: *jira-diagnostic

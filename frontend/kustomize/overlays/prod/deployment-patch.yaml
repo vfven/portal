@@ -1,0 +1,33 @@
+# Patch de PROD: recursos completos + conexión a DB productiva.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: serviceportal-backend
+spec:
+  template:
+    spec:
+      containers:
+        - name: serviceportal-backend
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "512Mi"
+            limits:
+              cpu: "500m"
+              memory: "1Gi"
+          env:
+            - name: NODE_ENV
+              value: "production"
+            - name: DB_HOST
+              value: "database.example.com"
+            - name: DB_PORT
+              value: "5432"
+            - name: DB_NAME
+              value: "appdb"
+            - name: DB_USER
+              value: "appuser"
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: serviceportal-backend-secrets
+                  key: db-password

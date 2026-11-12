@@ -1,0 +1,140 @@
+const express = require('express');
+const cors = require('cors');
+const config = require('./config');
+
+// ═══════════════════════════════════════════════════════════════════════════
+// IMPORTAR RUTAS
+// ═══════════════════════════════════════════════════════════════════════════
+const autoservicioRoutes = require('./routes/autoservicio.routes');
+const herramientasRoutes = require('./routes/herramientas.routes');
+const solicitudesRoutes = require('./routes/solicitudes.routes');
+const despliegueRoutes = require('./routes/despliegue.routes');
+const chatRoutes = require('./routes/chat.routes');
+
+// ═══════════════════════════════════════════════════════════════════════════
+// INSTANCIA EXPRESS
+// ═══════════════════════════════════════════════════════════════════════════
+const app = express();
+
+// Middlewares globales
+app.use(cors());
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ENDPOINT DE VERSIÓN — consumido por el frontend para la marca de agua.
+// Las vars APP_BUILD y APP_BUILD_DATE las inyecta el pipeline/Dockerfile en
+// build time. APP_BUILD = BITBUCKET_BUILD_NUMBER (consecutivo).
+// Fallback: 'local' + fecha actual para desarrollo local.
+// ═══════════════════════════════════════════════════════════════════════════
+function versionHandler(req, res) {
+  const buildDateEnv = process.env.APP_BUILD_DATE;
+  res.status(200).json({
+    service:   'backend',
+    build:     process.env.APP_BUILD || 'local',
+    buildDate: (buildDateEnv && buildDateEnv !== 'local')
+      ? buildDateEnv
+      : new Date().toISOString().slice(0, 10),
+  });
+}
+// Se expone en ambas rutas porque el nginx del frontend reenvia /api/* sin
+// strip del prefijo (proxy_pass sin URI), por lo que el frontend llama a
+// /api/version mientras que probes/curl directos usan /version.
+app.get('/version', versionHandler);
+app.get('/api/version', versionHandler);
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ENDPOINT REQUERIDO POR KUBERNETES (Liveness/Readiness Probe)
+// ═══════════════════════════════════════════════════════════════════════════
+app.get('/health', (req, res) => {
+  return res.status(200).json({
+    status: 'ok',
+    environment: config.NODE_ENV,
+    service: 'devops-portal-backend',
+    timestamp: new Date().toISOString(),
+    endpoints: {
+      autoservicio: 3,
+      herramientas: 8,
+      solicitudes: 4,
+      despliegue: 3,
+      total: 18
+    }
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// REGISTRO DE RUTAS
+// ═══════════════════════════════════════════════════════════════════════════
+
+// AUTOSERVICIO — Solicitudes simple, VM Cloud, Namespace K8s
+app.use('/api/autoservicio', autoservicioRoutes);
+
+// HERRAMIENTAS — Acceso a Jenkins, Bitbucket, ArgoCD, K8s, SonarQube, Grafana, Harbor, Vault
+app.use('/api/herramientas', herramientasRoutes);
+
+// SOLICITUDES GENERALES — Nueva herramienta, contenedor, infraestructura, automatización
+app.use('/api/solicitudes', solicitudesRoutes);
+
+// DESPLIEGUE — Despliegues en K8s On-Prem + Jenkins + Rollback   ACTIVADO
+app.use('/api/despliegue', despliegueRoutes);
+
+// CHAT — Asistente IA local (Ollama)
+app.use('/api/chat', chatRoutes);
+
+// ═══════════════════════════════════════════════════════════════════════════
+// MANEJO DE ERRORES 404
+// ═══════════════════════════════════════════════════════════════════════════
+app.use((req, res) => {
+  res.status(404).json({
+    error: 'Ruta no encontrada',
+    path: req.path,
+    method: req.method,
+    endpoints: {
+      autoservicio: 3,
+      herramientas: 8,
+      solicitudes: 4,
+      despliegue: 3,
+      total: 18
+    }
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// INICIAR SERVIDOR
+// ═══════════════════════════════════════════════════════════════════════════
+app.listen(config.PORT, () => {
+  console.log(`\n${'='.repeat(70)}`);
+  console.log(`Backend corriendo en modo [${config.NODE_ENV}]`);
+  console.log(`Puerto: ${config.PORT}`);
+  console.log(`SMTP Configurado: ${config.SMTP_HOST && config.SMTP_USER ? 'SI' : 'NO'}`);
+  console.log(`JIRA Configurado: ${config.JIRA_API_TOKEN && config.JIRA_API_TOKEN !== 'tu_api_token' ? 'SI' : 'NO'}`);
+  console.log(`Bitbucket Configurado: ${config.BITBUCKET_APP_PASSWORD ? 'SI' : 'NO'}`);
+  console.log(`${'='.repeat(70)}`);
+  console.log(`\nENDPOINTS DISPONIBLES:\n`);
+  console.log(`   AUTOSERVICIO (3):`);
+  console.log(`     POST /api/autoservicio/solicitud-simple`);
+  console.log(`     POST /api/autoservicio/solicitud-vm`);
+  console.log(`     POST /api/autoservicio/solicitud-namespace\n`);
+  console.log(`   HERRAMIENTAS (8):`);
+  console.log(`     POST /api/herramientas/jenkins/acceso`);
+  console.log(`     POST /api/herramientas/bitbucket/acceso`);
+  console.log(`     POST /api/herramientas/argocd/app`);
+  console.log(`     POST /api/herramientas/kubernetes/acceso`);
+  console.log(`     POST /api/herramientas/sonarqube/proyecto`);
+  console.log(`     POST /api/herramientas/grafana/dashboard`);
+  console.log(`     POST /api/herramientas/harbor/acceso`);
+  console.log(`     POST /api/herramientas/vault/secrets\n`);
+  console.log(`   SOLICITUDES (4):`);
+  console.log(`     POST /api/solicitudes/herramienta`);
+  console.log(`     POST /api/solicitudes/contenedor`);
+  console.log(`     POST /api/solicitudes/infraestructura`);
+  console.log(`     POST /api/solicitudes/automatizacion\n`);
+  console.log(`   DESPLIEGUE (3):`);
+  console.log(`     POST /api/despliegue/kubernetes`);
+  console.log(`     POST /api/despliegue/jenkins-trigger`);
+  console.log(`     POST /api/despliegue/rollback\n`);
+  console.log(`   HEALTH: GET /health\n`);
+  console.log(`${'═'.repeat(70)}\n`);
+});
+
+module.exports = app;

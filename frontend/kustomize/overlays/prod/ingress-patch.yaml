@@ -1,0 +1,23 @@
+# Patch de PROD: host público + TLS.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: serviceportal-backend
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+spec:
+  tls:
+    - hosts:
+        - api.bancobase.com
+      secretName: serviceportal-backend-tls
+  rules:
+    - host: api.bancobase.com
+      http:
+        paths:
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: serviceportal-backend
+                port:
+                  number: 80

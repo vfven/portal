@@ -1,0 +1,19 @@
+# Ingress del backend.
+# Expone la API bajo el path /api; host y TLS se cambian por overlay.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: serviceportal-backend
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: api.example.com
+      http:
+        paths:
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: serviceportal-backend
+                port:
+                  number: 80

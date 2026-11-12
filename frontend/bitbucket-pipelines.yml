@@ -1,0 +1,199 @@
+# =============================================================================
+# PIPELINE — Minimal (build + push a ECR + generate manifests + policy check)
+# =============================================================================
+# Flujo activo:
+#   init-submodule → load-env → validate-env
+#   → build-image
+#   → (parallel) sbom-generate + image-scan-trivy
+#   → push-to-ecr
+#   → generate-manifests (Kustomize) → policy-check (OPA + kubeconform)
+#   → collect-logs → generate-report
+#
+# Steps no activos todavía (están definidos como anchors pero sin usar):
+#   SAST, SCA, secret-scan, license-check, tests, sign-image,
+#   gitops-update, argocd-sync, smoke-tests, DAST, perf, jira, chat.
+#   Se van habilitando a medida que se configuren las vars en Bitbucket.
+#
+# NOTA — pipefail:
+#   Las líneas con "| tee x.log" llevan "set -o pipefail &&" para que el exit
+#   code del script no quede enmascarado por tee (que siempre retorna 0).
+# =============================================================================
+
+image: atlassian/default-image:3
+
+definitions:
+  services:
+    docker:
+      memory: 3072
+  caches:
+    node: node_modules
+    sonar: ~/.sonar/cache
+    trivy: ~/.cache/trivy
+    cosign: ~/.cosign
+
+  variables:
+    - name: COVERAGE_THRESHOLD
+      value: "10"
+    - name: CRITICAL_CVE_THRESHOLD
+      value: "0"
+    - name: HIGH_CVE_THRESHOLD
+      value: "5"
+
+  yaml-anchors:
+
+    # ========================================================================
+    # PREFLIGHT
+    # ========================================================================
+    - &init-submodule
+        name: "Init Submodule"
+        script:
+          - git submodule update --init --recursive --remote --force
+          - ls -la infra-cicd-tools/scripts/
+        artifacts:
+          - infra-cicd-tools/**
+
+    - &load-env
+        name: "Load Env (.env + .env.<env>)"
+        script:
+          - chmod +x infra-cicd-tools/scripts/preflight/load-env.sh
+          - ./infra-cicd-tools/scripts/preflight/load-env.sh "${ENVIRONMENT:-development}"
+        artifacts:
+          - export_vars.sh
+
+    - &validate-env
+        name: "Validate Env (variables y origen)"
+        script:
+          - source export_vars.sh
+          - chmod +x infra-cicd-tools/scripts/preflight/validate-env.sh
+          - set -o pipefail && ./infra-cicd-tools/scripts/preflight/validate-env.sh 2>&1 | tee validate-env.log
+        artifacts:
+          - validate-env.log
+
+    # ========================================================================
+    # BUILD + SBOM + SCAN + PUSH
+    # ========================================================================
+    - &build-image
+        name: "Build Image (BuildKit + cache)"
+        services: [docker]
+        caches: [docker]
+        script:
+          - source export_vars.sh
+          - chmod +x infra-cicd-tools/scripts/build/build-image-buildkit.sh
+          - set -o pipefail && ./infra-cicd-tools/scripts/build/build-image-buildkit.sh 2>&1 | tee build-image.log
+        artifacts:
+          - docker.tar
+          - build-image.log
+          - image-info.txt
+
+    - &sbom-generate
+        name: "SBOM — syft"
+        services: [docker]
+        script:
+          - source export_vars.sh
+          - docker load -i docker.tar
+          - chmod +x infra-cicd-tools/scripts/security/sbom-generate.sh
+          - set -o pipefail && ./infra-cicd-tools/scripts/security/sbom-generate.sh 2>&1 | tee sbom-generate.log
+        artifacts:
+          - sbom.spdx.json
+          - sbom.cyclonedx.json
+          - sbom-generate.log
+
+    - &image-scan-trivy
+        name: "Image Scan — Trivy"
+        services: [docker]
+        caches: [trivy]
+        script:
+          - source export_vars.sh
+          - docker load -i docker.tar
+          - chmod +x infra-cicd-tools/scripts/security/image-scan-trivy.sh
+          - set -o pipefail && ./infra-cicd-tools/scripts/security/image-scan-trivy.sh 2>&1 | tee image-scan-trivy.log
+        artifacts:
+          - image-scan-trivy.log
+          - image-scan-trivy.json
+
+    - &push-to-ecr
+        name: "Push to ECR"
+        image: cbytedigital/aws-cli-jq
+        services: [docker]
+        oidc: true
+        script:
+          - source export_vars.sh
+          - docker load -i docker.tar
+          - chmod +x infra-cicd-tools/scripts/build/push-to-ecr.sh
+          - set -o pipefail && ./infra-cicd-tools/scripts/build/push-to-ecr.sh 2>&1 | tee push-to-ecr.log
+        artifacts:
+          - push-to-ecr.log
+          - ecr-push-info.txt
+
+    # ========================================================================
+    # MANIFESTS + POLICY
+    # ========================================================================
+    - &generate-manifests
+        name: "Generate Manifests (Kustomize → artifact descargable)"
+        script:
+          - source export_vars.sh
+          - if [ -f ecr-push-info.txt ]; then source ecr-push-info.txt; fi
+          - chmod +x infra-cicd-tools/scripts/deploy/generate-manifests.sh
+          - set -o pipefail && ./infra-cicd-tools/scripts/deploy/generate-manifests.sh 2>&1 | tee generate-manifests.log
+        artifacts:
+          - rendered-manifests/**
+          - generate-manifests.log
+
+    - &policy-check
+        name: "Policy Check — conftest (OPA) + kubeconform"
+        script:
+          - source export_vars.sh
+          - chmod +x infra-cicd-tools/scripts/deploy/policy-check-conftest.sh
+          - set -o pipefail && ./infra-cicd-tools/scripts/deploy/policy-check-conftest.sh 2>&1 | tee policy-check.log
+        artifacts:
+          - policy-check.log
+          - rendered-manifests/**
+
+    # ========================================================================
+    # NOTIFY
+    # ========================================================================
+    - &collect-logs
+        name: "Collect Logs (pipeline-full.log)"
+        script:
+          - source export_vars.sh
+          - chmod +x infra-cicd-tools/scripts/notify/collect-logs.sh
+          - ./infra-cicd-tools/scripts/notify/collect-logs.sh
+        on-fail:
+          strategy: ignore
+        artifacts:
+          - pipeline-full.log
+
+    - &generate-report
+        name: "Generate Report (report.html)"
+        script:
+          - source export_vars.sh
+          - if [ -f ecr-push-info.txt ]; then source ecr-push-info.txt; fi
+          - apt-get update -qq && apt-get install -y -qq jq >/dev/null 2>&1 || true
+          - chmod +x infra-cicd-tools/scripts/notify/generate-report.sh
+          - ./infra-cicd-tools/scripts/notify/generate-report.sh
+        on-fail:
+          strategy: ignore
+        artifacts:
+          - report.html
+
+
+# =============================================================================
+# PIPELINES
+# =============================================================================
+pipelines:
+
+  branches:
+    develop:
+      - step: *init-submodule
+      - step: *load-env
+      - step: *validate-env
+      - step: *build-image
+      - parallel:
+          steps:
+            - step: *sbom-generate
+            - step: *image-scan-trivy
+      - step: *push-to-ecr
+      - step: *generate-manifests
+      - step: *policy-check
+      - step: *collect-logs
+      - step: *generate-report

@@ -1,0 +1,21 @@
+# ConfigMap con la configuración NO sensible del backend.
+# Los valores sensibles (JIRA_API_TOKEN, SMTP_PASS, SMTP_USER) viven en el
+# Secret `backend-secrets` que se crea manualmente en el cluster con kubectl.
+#
+# Los overlays por ambiente pueden sobrescribir valores concretos con un
+# patch (ej. JIRA_PROJECT_KEY distinto en dev vs prod).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: backend-config
+data:
+  # ───── SMTP (corporativo) ─────
+  SMTP_HOST: "smtp.i.gslb"
+  SMTP_PORT: "25"
+  CORREO_DESTINO: "pruebasportal+digital@bancobase.com"
+
+  # ───── Jira ─────
+  JIRA_DOMAIN: "https://bancobase.atlassian.net"
+  JIRA_PROJECT_KEY: "BSJ"
+  JIRA_USER_EMAIL: "digital@bancobase.com"
+  JIRA_TYPE_SOLICITUD: "10428"

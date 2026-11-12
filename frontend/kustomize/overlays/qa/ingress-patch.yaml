@@ -1,0 +1,16 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: serviceportal-backend
+spec:
+  rules:
+    - host: api.kubernetes-qa.bancobase.com
+      http:
+        paths:
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: serviceportal-backend
+                port:
+                  number: 80

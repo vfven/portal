@@ -1,0 +1,34 @@
+# Patch de DEV: recursos reducidos + conexión a DB de desarrollo.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: serviceportal-backend
+spec:
+  template:
+    spec:
+      containers:
+        - name: serviceportal-backend
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "128Mi"
+            limits:
+              cpu: "150m"
+              memory: "256Mi"
+          env:
+            - name: NODE_ENV
+              value: "development"
+            - name: DB_HOST
+              value: "dev-database.example.com"
+            - name: DB_PORT
+              value: "5432"
+            - name: DB_NAME
+              value: "appdb_dev"
+            - name: DB_USER
+              value: "appuser"
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: serviceportal-backend-secrets
+                  key: db-password
+                  optional: true

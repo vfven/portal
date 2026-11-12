@@ -1,0 +1,16 @@
+# Service ClusterIP — el frontend (nginx) lo consume por DNS interno.
+# port=80 → otros pods usan http://serviceportal-backend/
+# targetPort=http → mapea al puerto 3000 del container
+apiVersion: v1
+kind: Service
+metadata:
+  name: serviceportal-backend
+spec:
+  type: ClusterIP
+  selector:
+    app: serviceportal-backend
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+      protocol: TCP
