@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DevOps Platform · Banco BASE</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='12' fill='%23002B5C'/><rect x='10' y='46' width='10' height='10' rx='2' fill='%23F9A800'/><text x='32' y='42' text-anchor='middle' font-family='Inter,Segoe UI,Arial,sans-serif' font-weight='800' font-size='34' fill='%23FFFFFF'>B</text></svg>">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+</head>
+<body>
+
+<!-- =============================================== -->
+<!-- NAV                                            -->
+<!-- =============================================== -->
+<nav>
+  <div class="nav-logo" onclick="navigate('home')">
+    <div class="nav-logo-dot"></div>DevOps Platform</div>
+  <span class="nav-pill">Banco BASE</span>
+  <ul class="nav-links">
+    <li><a onclick="navigate('home')" data-view="home">Home</a></li>
+    <li><a onclick="navigate('catalogo')" data-view="catalogo">Catálogo</a></li>
+    <li><a onclick="navigate('herramientas')" data-view="herramientas">Herramientas</a></li>
+    <li><a onclick="navigate('guias')" data-view="guias">Guías</a></li>
+    <li><a onclick="navigate('plantillas')" data-view="plantillas">Plantillas</a></li>
+    <li><a onclick="navigate('solicitar')" data-view="solicitar">Solicitar</a></li>
+    <li><a onclick="navigate('autoservicio')" data-view="autoservicio">Autoservicio</a></li>
+  </ul>
+</nav>
+
+<!-- VIEW: HOME -->
+<div class="view active" id="view-home">
+  <div class="home-hero">
+    <div class="home-hero-inner">
+      <div class="home-label">Ingeniería DevOps & Platform Engineering — Banco BASE</div>
+      <h1>Construimos la plataforma que impulsa la <span>entrega continua de software</span></h1>
+      <p class="home-hero-sub">Habilitamos a los equipos de desarrollo mediante automatización, plataformas compartidas, observabilidad, seguridad e infraestructura moderna para acelerar la entrega de valor al negocio.</p>
+      <div class="home-btns">
+        <button class="btn-hp" onclick="navigate('catalogo')">Explorar plataforma</button>
+        <button class="btn-hs" onclick="navigate('guias')">Guías técnicas →</button>
+      </div>
+    </div>
+  </div>
+  <div class="home-stats">
+    <div class="home-stat"><div class="home-stat-n">CI/CD</div><div class="home-stat-l">Automatización de despliegues</div></div>
+    <div class="home-stat"><div class="home-stat-n">GitOps</div><div class="home-stat-l">Gestión declarativa de plataformas</div></div>
+    <div class="home-stat"><div class="home-stat-n">SRE</div><div class="home-stat-l">Confiabilidad y observabilidad</div></div>
+    <div class="home-stat"><div class="home-stat-n">Cloud</div><div class="home-stat-l">Infraestructura híbrida</div></div>
+  </div>
+  <div class="home-sec" style="background:var(--bg)">
+    <div class="home-sec-inner">
+      <div class="home-sec-title">Nuestra misión</div>
+      <div class="home-sec-sub">Proporcionar plataformas seguras, escalables y estandarizadas que permitan a los equipos enfocarse en desarrollar productos y no en administrar infraestructura.</div>
+      <div class="shortcuts">
+        <div class="sc-card">
+          <div class="sc-icon" style="background:#E6F4EA"><i class="fas fa-robot fa-2x" style="color:#002B5C;"></i></div>
+          <h3>Automatización</h3>
+          <p>Diseñamos pipelines CI/CD, flujos GitOps y procesos automatizados para acelerar los ciclos de entrega.</p>
+        </div>
+        <div class="sc-card">
+          <div class="sc-icon" style="background:#E6F0FA"><i class="fas fa-cubes fa-2x" style="color:#002B5C;"></i></div>
+          <h3>Plataformas Kubernetes</h3>
+          <p>Operamos y evolucionamos clústeres On-Premise y Cloud con estándares de seguridad, resiliencia y gobierno.</p>
+        </div>
+        <div class="sc-card">
+          <div class="sc-icon" style="background:#FEF5E6"><i class="fas fa-shield-alt fa-2x" style="color:#002B5C;"></i></div>
+          <h3>Seguridad Integrada</h3>
+          <p>Incorporamos controles de seguridad, gestión de secretos, certificados y análisis continuo desde el diseño.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="home-sec" style="background:var(--white);border-top:1px solid var(--gray-light);border-bottom:1px solid var(--gray-light)">
+    <div class="home-sec-inner">
+      <div class="home-sec-title">Capacidades de la plataforma</div>
+      <div class="home-sec-sub">Servicios y componentes que habilitan el ciclo completo de desarrollo.</div>
+      <div class="shortcuts">
+        <div class="sc-card">
+          <div class="sc-icon" style="background:#EDE9FE"><i class="fas fa-code-branch fa-2x" style="color:#002B5C;"></i></div>
+          <h3>CI/CD</h3>
+          <p>Jenkins, Bitbucket Pipelines y automatización de despliegues.</p>
+        </div>
+        <div class="sc-card">
+          <div class="sc-icon" style="background:#FEF2EF"><i class="fas fa-sync-alt fa-2x" style="color:#002B5C;"></i></div>
+          <h3>GitOps</h3>
+          <p>Argo CD y despliegues declarativos para ambientes consistentes.</p>
+        </div>
+        <div class="sc-card">
+          <div class="sc-icon" style="background:#E8EEF5"><i class="fas fa-chart-line fa-2x" style="color:#002B5C;"></i></div>
+          <h3>Observabilidad</h3>
+          <p>Monitoreo, métricas, trazabilidad y alertamiento con Grafana y Prometheus.</p>
+        </div>
+        <div class="sc-card">
+          <div class="sc-icon" style="background:#E6F4EA"><i class="fas fa-check-circle fa-2x" style="color:#002B5C;"></i></div>
+          <h3>Calidad y Seguridad</h3>
+          <p>Integración de SonarQube y controles automatizados durante el ciclo de vida.</p>
+        </div>
+        <div class="sc-card">
+          <div class="sc-icon" style="background:#E6F0FA"><i class="fas fa-code fa-2x" style="color:#002B5C;"></i></div>
+          <h3>Infraestructura como Código</h3>
+          <p>Terraform y aprovisionamiento reproducible para plataformas cloud.</p>
+        </div>
+        <div class="sc-card">
+          <div class="sc-icon" style="background:#FEF5E6"><i class="fas fa-key fa-2x" style="color:#002B5C;"></i></div>
+          <h3>Gestión de Secretos</h3>
+          <p>Vault para protección de credenciales, certificados y llaves.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="home-sec" style="background:var(--bg)">
+    <div class="home-sec-inner">
+      <div class="home-sec-title">Principios de Ingeniería DevOps</div>
+      <div class="home-sec-sub">Los pilares que guían nuestras decisiones técnicas y operativas.</div>
+      <div class="shortcuts">
+        <div class="sc-card">
+          <div class="sc-icon" style="background:#E6F4EA"><i class="fas fa-cogs fa-2x" style="color:#002B5C;"></i></div>
+          <h3>Automatizar</h3>
+          <p>Reducir tareas manuales mediante pipelines, scripts y procesos repetibles.</p>
+        </div>
+        <div class="sc-card">
+          <div class="sc-icon" style="background:#E6F0FA"><i class="fas fa-ruler-combined fa-2x" style="color:#002B5C;"></i></div>
+          <h3>Estandarizar</h3>
+          <p>Crear patrones, plantillas y plataformas reutilizables para todos los equipos.</p>
+        </div>
+        <div class="sc-card">
+          <div class="sc-icon" style="background:#FEF5E6"><i class="fas fa-eye fa-2x" style="color:#002B5C;"></i></div>
+          <h3>Observar</h3>
+          <p>Obtener métricas, logs y trazabilidad para tomar decisiones basadas en datos.</p>
+        </div>
+        <div class="sc-card">
+          <div class="sc-icon" style="background:#EDE9FE"><i class="fas fa-lock fa-2x" style="color:#002B5C;"></i></div>
+          <h3>Asegurar</h3>
+          <p>Incorporar controles de seguridad desde el diseño y durante todo el ciclo de vida.</p>
+        </div>
+        <div class="sc-card">
+          <div class="sc-icon" style="background:#FEF2EF"><i class="fas fa-chart-line fa-2x" style="color:#002B5C;"></i></div>
+          <h3>Escalar</h3>
+          <p>Construir plataformas resilientes capaces de crecer junto con el negocio.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="home-sec" style="background:var(--white);border-top:1px solid var(--gray-light)">
+    <div class="home-sec-inner" style="text-align:center;padding-top:28px;padding-bottom:28px">
+      <p style="font-size:13px;color:var(--gray)">DevOps Platform Engineering · Banco BASE<br>Construyendo plataformas para acelerar la innovación tecnológica.</p>
+    </div>
+  </div>
+</div>
+
+<!-- VIEW: CATÁLOGO -->
+<div class="view" id="view-catalogo">
+  <div class="hero">
+    <div class="hero-inner">
+      <div class="hero-badge">Plataforma DevOps</div>
+      <h1>Catálogo de <em>Servicios</em></h1>
+      <p class="hero-sub">Herramientas, plantillas y recursos para acelerar el desarrollo seguro en Banco BASE.</p>
+    </div>
+  </div>
+  <div class="container">
+    <div class="section-header"><h2>Herramientas Disponibles</h2><a class="section-link" onclick="navigate('herramientas')">Ver todas →</a></div>
+    <div class="tools-grid" id="cat-toolsGrid"></div>
+    <div class="section-header"><h2>Plantillas de Código</h2><a class="section-link" onclick="navigate('plantillas')">Ver repositorio →</a></div>
+    <div class="templates-grid" id="cat-templatesGrid"></div>
+    <div class="section-header"><h2>Solicitar Nuevo Servicio</h2></div>
+    <div class="form-card">
+      <p style="margin-bottom:20px;color:var(--dark2);font-size:14px;">¿Necesitas una nueva herramienta, repositorio base o automatización? Completa el formulario y el equipo de DevOps evaluará tu solicitud.</p>
+      <form id="cat-serviceForm" onsubmit="return false;">
+        <div class="form-group"><label class="form-label">Tipo de solicitud <span class="required">*</span></label><select class="form-select" id="cat-requestType" required><option value="">Selecciona...</option><option value="herramienta">Nueva herramienta / integración</option><option value="plantilla">Nueva plantilla / boilerplate</option><option value="automatizacion">Nueva automatización / pipeline</option><option value="mejora">Mejora a servicio existente</option></select></div>
+        <div class="form-group"><label class="form-label">Nombre del servicio <span class="required">*</span></label><input type="text" class="form-input" id="cat-serviceName" placeholder="ej: GitLab CI, Argo Rollouts, etc." required></div>
+        <div class="form-group"><label class="form-label">Descripción <span class="required">*</span></label><textarea class="form-textarea" id="cat-serviceDesc" rows="3" placeholder="¿Qué problema resuelve? ¿Para qué equipo o aplicación?" required></textarea></div>
+        <div class="form-group"><label class="form-label">Tu equipo</label><input type="text" class="form-input" id="cat-team" placeholder="ej: Equipo Pagos Digitales"></div>
+        <button type="submit" class="btn-primary" onclick="submitForm('cat-feedback','cat-serviceForm')">Enviar solicitud</button>
+      </form>
+      <div id="cat-feedback" class="feedback"></div>
+    </div>
+    <div class="page-footer">DevOps Platform Engineering · <a href="#">Reportar problema</a></div>
+  </div>
+</div>
+
+<!-- VIEW: HERRAMIENTAS -->
+<div class="view" id="view-herramientas">
+  <div class="hero">
+    <div class="hero-inner">
+      <div class="hero-badge">Inventario de Plataforma</div>
+      <h1>Herramientas Disponibles</h1>
+      <p class="hero-sub">Acceso directo a todas las herramientas de la plataforma DevOps. Estado, versiones y documentación.</p>
+    </div>
+  </div>
+  <div class="container">
+    <div class="breadcrumb"><a onclick="navigate('catalogo')">← Catálogo</a> <span>/ Herramientas</span></div>
+    <div class="filters">
+      <button class="filter-btn active" data-filter="all">Todas</button>
+      <button class="filter-btn" data-filter="operational">Operativas</button>
+      <button class="filter-btn" data-filter="warning">Atención</button>
+      <button class="filter-btn" data-filter="incident">Incidente</button>
+    </div>
+    <div class="tools-detailed-grid" id="her-toolsGrid"></div>
+    <div class="page-footer">Última actualización: <span id="her-lastUpdate"></span> · <a href="#">Reportar problema</a></div>
+  </div>
+</div>
+
+<!-- VIEW: GUIAS -->
+<div class="view" id="view-guias">
+  <div class="hero" style="background:linear-gradient(135deg,#002B5C 0%,#0052A5 100%)">
+    <div class="hero-inner">
+      <div class="hero-badge" style="background:rgba(249,168,0,.2);border:1px solid rgba(249,168,0,.4);color:#F9A800">Documentación Técnica</div>
+      <h1 style="color:#fff">Guías de Despliegue</h1>
+      <p class="hero-sub" style="color:rgba(255,255,255,.85)">Instrucciones paso a paso para desplegar en On-Prem, Cloud y plataformas internas de Banco BASE.</p>
+    </div>
+  </div>
+  <div class="container">
+    <div class="breadcrumb"><a onclick="navigate('home')">← Home</a> <span>/ Guías</span></div>
+    <div class="g-tabs">
+      <button class="g-tab active" onclick="switchGTab('onprem',this)">On-Premise</button>
+      <button class="g-tab" onclick="switchGTab('cloud',this)">Cloud</button>
+      <button class="g-tab" onclick="switchGTab('plataforma',this)">Plataformas Internas</button>
+    </div>
+    <div class="g-panel active" id="gp-onprem">
+      <div class="filters" id="gf-onprem">
+        <button class="filter-btn active" onclick="filterG('onprem','all',this)">Todas</button>
+        <button class="filter-btn" onclick="filterG('onprem','k8s',this)">Kubernetes</button>
+        <button class="filter-btn" onclick="filterG('onprem','jenkins',this)">Jenkins</button>
+        <button class="filter-btn" onclick="filterG('onprem','database',this)">Bases de Datos</button>
+      </div>
+      <div id="gl-onprem"></div>
+    </div>
+    <div class="g-panel" id="gp-cloud">
+      <div class="filters" id="gf-cloud">
+        <button class="filter-btn active" onclick="filterG('cloud','all',this)">Todas</button>
+        <button class="filter-btn" onclick="filterG('cloud','aws',this)">AWS</button>
+        <button class="filter-btn" onclick="filterG('cloud','terraform',this)">Terraform</button>
+        <button class="filter-btn" onclick="filterG('cloud','cicd',this)">CI/CD</button>
+      </div>
+      <div id="gl-cloud"></div>
+    </div>
+    <div class="g-panel" id="gp-plataforma">
+      <div class="filters" id="gf-plataforma">
+        <button class="filter-btn active" onclick="filterG('plataforma','all',this)">Todas</button>
+        <button class="filter-btn" onclick="filterG('plataforma','harbor',this)">Harbor</button>
+        <button class="filter-btn" onclick="filterG('plataforma','vault',this)">Vault</button>
+        <button class="filter-btn" onclick="filterG('plataforma','monitoring',this)">Monitoreo</button>
+        <button class="filter-btn" onclick="filterG('plataforma','sonar',this)">SonarQube</button>
+      </div>
+      <div id="gl-plataforma"></div>
+    </div>
+    <div class="page-footer">¿Falta una guía? Solicítala en <strong>#devops-platform</strong>.</div>
+  </div>
+</div>
+
+<!-- VIEW: PLANTILLAS -->
+<div class="view" id="view-plantillas">
+  <div class="hero">
+    <div class="hero-inner">
+      <div class="hero-badge">Boilerplates · Código Base</div>
+      <h1>Plantillas de Código</h1>
+      <p class="hero-sub">Repositorios base, boilerplates y ejemplos para acelerar el desarrollo de aplicaciones en Banco BASE.</p>
+    </div>
+  </div>
+  <div class="container">
+    <div class="breadcrumb"><a onclick="navigate('catalogo')">← Catálogo</a> <span>/ Plantillas</span></div>
+    <div class="filters" id="pla-filters">
+      <button class="filter-btn active" data-filter="all">Todas</button>
+      <button class="filter-btn" data-filter="backend">Backend</button>
+      <button class="filter-btn" data-filter="frontend">Frontend</button>
+      <button class="filter-btn" data-filter="infra">Infraestructura</button>
+      <button class="filter-btn" data-filter="docker">Docker</button>
+      <button class="filter-btn" data-filter="kustomize">Kustomize</button>
+    </div>
+    <div class="templates-grid" id="pla-templatesGrid"></div>
+    <div class="guide-section">
+      <div class="guide-header" onclick="toggleGuide()">
+        <h2>Guía: Construcción de manifiestos con Kustomize</h2>
+        <span class="guide-expand" id="guideExpand">▼</span>
+      </div>
+      <div class="guide-body" id="guideBody">
+        <p style="margin-bottom:24px;">Kustomize permite personalizar manifiestos de Kubernetes sin templates. Sigue esta estructura estándar.</p>
+        <div class="step"><div class="step-title"><span class="step-number">1</span> Estructura de directorios</div><div class="structure-tree">📁 app-mi-servicio/<br>├── 📁 base/<br>│   ├── deployment.yaml<br>│   ├── service.yaml<br>│   ├── configmap.yaml<br>│   └── kustomization.yaml<br>└── 📁 overlays/<br>    ├── 📁 dev/<br>    │   ├── kustomization.yaml<br>    │   └── patch-replicas.yaml<br>    ├── 📁 qa/<br>    └── 📁 prod/</div></div>
+        <div class="step"><div class="step-title"><span class="step-number">2</span> base/kustomization.yaml</div><div class="code-block"><code>apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - deployment.yaml
+  - service.yaml
+  - configmap.yaml
+commonLabels:
+  app: mi-servicio
+  managed-by: kustomize</code></div></div>
+        <div class="step"><div class="step-title"><span class="step-number">3</span> Overlay dev (overlays/dev/kustomization.yaml)</div><div class="code-block"><code>apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../base
+namespace: dev
+patches:
+  - target:
+      kind: Deployment
+      name: mi-servicio
+    patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 1</code></div></div>
+        <div class="step"><div class="step-title"><span class="step-number">4</span> Comandos útiles</div><div class="code-block"><code># Ver resultado
+kustomize build overlays/dev
+
+# Aplicar
+kubectl apply -k overlays/dev/
+
+# Diferencia entre entornos
+kustomize build overlays/dev | diff - &lt;(kustomize build overlays/prod)</code></div></div>
+        <div class="note-box"><strong>Recomendación Banco BASE:</strong> Usa esta estructura para todas las aplicaciones. Los overlays por ambiente permiten mantener la base limpia.</div>
+      </div>
+    </div>
+    <div class="page-footer">¿Necesitas una plantilla específica? <a onclick="navigate('solicitar')" style="cursor:pointer">Solicítala →</a></div>
+  </div>
+</div>
+
+<!-- VIEW: SOLICITAR -->
+<div class="view" id="view-solicitar">
+  <div class="hero">
+    <div class="hero-inner">
+      <div class="hero-badge">Self-Service · Automatización</div>
+      <h1>Solicitar Nuevo Servicio</h1>
+      <p class="hero-sub">Pide una herramienta, contenedor o infraestructura y el equipo de DevOps la provisionará automáticamente.</p>
+    </div>
+  </div>
+  <div class="container">
+    <div class="breadcrumb"><a onclick="navigate('catalogo')">← Catálogo</a> <span>/ Solicitar</span></div>
+    <div class="section-header" style="margin-top:0"><h2>Servicios pre-aprobados</h2><div class="section-desc">Selecciona uno para provisioning automático</div></div>
+    <div class="sol-grid" id="sol-servicesGrid"></div>
+    <div class="section-header"><h2>Solicitud personalizada</h2><div class="section-desc">¿No encuentras lo que necesitas?</div></div>
+    <div class="form-card" id="sol-formCard">
+      <form id="sol-serviceForm" onsubmit="return false;">
+        <div class="form-grid">
+          <div class="form-group"><label class="form-label">Tipo de servicio <span class="required">*</span></label><select class="form-select" id="sol-serviceType" required><option value="">Selecciona...</option><option value="herramienta">Nueva herramienta / plataforma</option><option value="contenedor">Contenedor / Imagen Docker</option><option value="infraestructura">Infraestructura (BD, almacenamiento)</option><option value="automatizacion">Automatización / Pipeline</option><option value="acceso">Acceso a herramienta existente</option></select></div>
+          <div class="form-group"><label class="form-label">Nombre del servicio <span class="required">*</span></label><input type="text" class="form-input" id="sol-serviceName" placeholder="ej: GitLab Runner, MongoDB, Redis Cache" required></div>
+          <div class="form-group full-width"><label class="form-label">Descripción / Justificación <span class="required">*</span></label><textarea class="form-textarea" id="sol-serviceDesc" rows="3" placeholder="¿Qué problema resuelve? ¿Para qué equipo?" required></textarea></div>
+          <div class="form-group"><label class="form-label">Ambiente destino</label><select class="form-select" id="sol-targetEnv"><option value="dev">Desarrollo (DEV)</option><option value="qa">QA</option><option value="stg">Staging</option><option value="prod">Producción (requiere aprobación)</option></select></div>
+          <div class="form-group"><label class="form-label">Equipo solicitante</label><input type="text" class="form-input" id="sol-team" placeholder="ej: Equipo Pagos Digitales"></div>
+          <div class="form-group full-width"><label class="form-label">Requisitos especiales</label><textarea class="form-textarea" id="sol-special" rows="2" placeholder="Versión específica, recursos, variables de entorno..."></textarea></div>
+        </div>
+        <button type="submit" class="btn-primary" onclick="submitSolicitar()">Enviar solicitud</button>
+      </form>
+      <div id="sol-feedback" class="feedback"></div>
+    </div>
+    <div class="info-box">Acciones rápidas: También puedes contactar al equipo en Slack <strong>#devops-platform</strong>.</div>
+    <div class="quick-actions">
+      <button class="quick-btn" onclick="quickFill('Jenkins Agent','Nodo worker de Jenkins para pipelines específicos')">Jenkins Agent</button>
+      <button class="quick-btn" onclick="quickFill('Namespace Kubernetes','Namespace aislado con resource quotas y network policies')">Namespace K8s</button>
+      <button class="quick-btn" onclick="quickFill('S3 Bucket','Bucket S3 con políticas de acceso y versionamiento')">Bucket Storage</button>
+      <button class="quick-btn" onclick="quickFill('Service Account','Service account para acceso programático a APIs internas')">Service Account</button>
+    </div>
+    <div class="page-footer">Tiempo estimado: 2 horas hábiles</div>
+  </div>
+</div>
+
+<!-- VIEW: AUTOSERVICIO -->
+<div class="view" id="view-autoservicio">
+  <div class="hero">
+    <div class="hero-inner">
+      <div class="hero-badge">Self-Service Center</div>
+      <h1>Autoservicio DevOps</h1>
+      <p class="hero-sub">Gestiona accesos, solicita infraestructura y administra secretos de forma automatizada.</p>
+    </div>
+  </div>
+  <div class="container">
+    <div class="breadcrumb"><a onclick="navigate('catalogo')">← Catálogo</a> <span>/ Autoservicio</span></div>
+    <div class="stats-grid">
+      <div class="stat-card"><div class="stat-number">15</div><div class="stat-label">Solicitudes atendidas (este mes)</div></div>
+      <div class="stat-card"><div class="stat-number">~2h</div><div class="stat-label">Tiempo promedio de respuesta</div></div>
+      <div class="stat-card"><div class="stat-number">100%</div><div class="stat-label">Automatización de aprobaciones</div></div>
+    </div>
+    <div class="section-header"><h2>Gestión de Accesos</h2></div>
+    <div class="cards-grid" id="aut-accesosGrid"></div>
+    <div class="section-header"><h2>Solicitar Infraestructura</h2></div>
+    <div class="cards-grid" id="aut-infraGrid"></div>
+    <div class="section-header"><h2>Secretos y Certificados</h2></div>
+    <div class="cards-grid" id="aut-secretosGrid"></div>
+    <div class="page-footer">¿Problemas con tu solicitud? Contacta a <strong>DevOps Platform Engineering</strong> por Slack.</div>
+  </div>
+</div>
+
+<!-- VIEW: DESPLIEGUE ON-PREM -->
+<div class="view" id="view-despliegue">
+  <div class="hero">
+    <div class="hero-inner">
+      <div class="hero-badge">CI/CD · On-Premises</div>
+      <h1>Despliegue On-Prem</h1>
+      <p class="hero-sub">Pipeline automatizado para infraestructura local. Integración completa con Jira Service Desk, Jenkins y Kubernetes.</p>
+    </div>
+  </div>
+  <div class="container">
+    <div class="breadcrumb"><a onclick="navigate('catalogo')">← Catálogo</a> <span>/ Despliegue On-Prem</span></div>
+    <div class="section-header" style="margin-top:0"><h2>Flujo de trabajo</h2></div>
+    <div class="flow-steps"><div class="flow-step">Jira Service Desk</div><div class="flow-arrow">→</div><div class="flow-step">Webhook</div><div class="flow-arrow">→</div><div class="flow-step">Jenkins Pipeline</div><div class="flow-arrow">→</div><div class="flow-step">Deploy K8s</div><div class="flow-arrow">→</div><div class="flow-step">Notificación</div></div>
+    <div class="section-header"><h2>Responsabilidades</h2></div>
+    <div class="info-grid"><div class="info-card"><h3>Solicitante (Developer)</h3><p>Completa el ticket en Jira Service Desk con repositorio, rama y ambiente destino.</p></div><div class="info-card"><h3>Aprobador (Tech Lead)</h3><p>Revisa la solicitud en Jira. Aprueba o rechaza según criterios de calidad y seguridad.</p></div><div class="info-card"><h3>DevOps Platform</h3><p>Mantiene el pipeline de Jenkins, el clúster Kubernetes y la integración con Jira.</p></div></div>
+    <div class="section-header"><h2>Detalle técnico</h2></div>
+    <div class="info-card"><p style="font-weight:600;margin-bottom:12px">Variables que recibe Jenkins desde Jira (Webhook JSON):</p><div class="code-block"><code>SUMMARY=Despliegue en QA
+ENVIRONMENT=QA
+APPLICATION=App X
+REPOSITORY=repo-app-x
+REQUESTER=usuario@empresa.com
+REQUEST_KEY=SDS-1234</code></div><p style="margin-top:12px;font-size:13px;color:var(--dark2)"><strong>Pipeline:</strong> Checkout → Build → Test → Security Scan → Deploy to K8s → Health Check</p><p style="margin-top:8px;font-size:13px;color:var(--dark2)"><strong>Notificación:</strong> Jenkins envía correo al solicitante con el resultado del despliegue.</p></div>
+    <div class="section-header"><h2>Solicitar despliegue</h2></div>
+    <div class="form-card">
+      <form id="dep-deployForm" onsubmit="return false;">
+        <div class="form-grid"><div class="form-group"><label class="form-label">Aplicación <span class="required">*</span></label><input type="text" class="form-input" id="dep-application" placeholder="ej: api-pagos" required></div><div class="form-group"><label class="form-label">Repositorio Bitbucket <span class="required">*</span></label><input type="text" class="form-input" id="dep-repo" placeholder="ej: equipo-core/api-pagos" required></div><div class="form-group"><label class="form-label">Rama / Tag <span class="required">*</span></label><input type="text" class="form-input" id="dep-branch" placeholder="develop, main, release/v1.0" required></div><div class="form-group"><label class="form-label">Ambiente destino</label><select class="form-select" id="dep-environment"><option value="QA">QA</option><option value="Staging">Staging</option><option value="Producción">Producción (requiere aprobación adicional)</option></select></div><div class="form-group full-width"><label class="form-label">Resumen <span class="required">*</span></label><input type="text" class="form-input" id="dep-summary" placeholder="Despliegue de [aplicación] en [ambiente]" required></div><div class="form-group full-width"><label class="form-label">Descripción</label><textarea class="form-textarea" id="dep-description" rows="3" placeholder="Detalles del despliegue, variables de entorno, configuraciones especiales..."></textarea></div></div>
+        <button type="submit" class="btn-primary" onclick="submitDeploy()">Enviar solicitud a Jira</button>
+      </form>
+      <div id="dep-feedback" class="feedback"></div>
+    </div>
+    <div class="page-footer"><a onclick="navigate('catalogo')" style="cursor:pointer">← Volver al catálogo</a></div>
+  </div>
+</div>
+
+<!-- MODALES -->
+<div class="modal-overlay" id="modalOverlay"><div class="modal"><div class="modal-header"><h3 id="modalTitle">Solicitud</h3><button class="modal-close" onclick="closeModal()">✕</button></div><div class="modal-body" id="modalBody"></div></div></div>
+<div class="modal-overlay" id="templateModalOverlay"><div class="modal" style="max-width:700px"><div class="modal-header"><h3 id="templateModalTitle">Vista rápida</h3><button class="modal-close" onclick="closeTemplateModal()">✕</button></div><div class="modal-body" id="templateModalBody"></div></div></div>
+
+
+<!-- Botón flotante -->
+<button id="chat-fab" onclick="chatToggle()" title="Asistente DevOps IA">
+  <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12c0 1.82.49 3.53 1.35 5L2 22l5-1.35C8.47 21.51 10.18 22 12 22c5.52 0 10-4.48 10-10S17.52 2 12 2zm-1 14H9v-2h2v2zm0-4H9V8h2v4zm4 4h-2v-2h2v2zm0-4h-2V8h2v4z"/></svg>
+  <div class="fab-badge" id="fab-badge"></div>
+</button>
+
+<!-- Ventana del chat -->
+<div id="chat-box">
+  <div id="chat-header">
+    <div class="chat-avatar"><img src="https://www.bancobase.com/favicon.ico" alt="Banco BASE" width="22" height="22" style="display:block;border-radius:4px"></div>
+    <div class="chat-title">
+      <strong>Asistente DevOps</strong>
+      <span id="ia-status-label">Verificando IA...</span>
+    </div>
+    <div id="ia-status"></div>
+    <button id="chat-close" onclick="chatToggle()">✕</button>
+  </div>
+
+  <div id="chat-messages">
+    <div class="cm cm-bot">
+      ¡Hola! Soy el asistente IA del portal DevOps de Banco BASE. Puedo ayudarte a navegar el portal y guiarte paso a paso para llenar cualquier formulario.<br><br>
+      Pregúntame algo como: <em>"quiero acceso a Jenkins"</em> o <em>"necesito una base de datos"</em>.
+    </div>
+  </div>
+
+  <!-- Sugerencias rápidas -->
+  <div class="chat-suggestions" id="chat-suggestions">
+    <button class="sug-btn" onclick="chatSuggestion('Quiero acceso a Jenkins')">🔧 Acceso Jenkins</button>
+    <button class="sug-btn" onclick="chatSuggestion('Necesito acceso a Bitbucket')">📁 Acceso Bitbucket</button>
+    <button class="sug-btn" onclick="chatSuggestion('Quiero crear una base de datos')">🗄️ Base de datos</button>
+    <button class="sug-btn" onclick="chatSuggestion('Necesito guardar secretos en Vault')">🔑 Secretos Vault</button>
+    <button class="sug-btn" onclick="chatSuggestion('¿Qué herramientas están disponibles?')">📋 Herramientas</button>
+    <button class="sug-btn" onclick="chatSuggestion('Cómo despliego en Kubernetes')">☸️ Guías K8s</button>
+  </div>
+
+  <div id="chat-input-row">
+    <textarea id="chat-input" placeholder="Escribe tu pregunta..." rows="1"
+      onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();chatSend()}"></textarea>
+    <button id="chat-send" onclick="chatSend()">Enviar</button>
+  </div>
+</div>
+
+<!-- Overlay de guía de campos -->
+<div id="guide-overlay"></div>
+
+<script type="module" src="/src/main.js"></script>
+</body>
+</html>

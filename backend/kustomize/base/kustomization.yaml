@@ -1,0 +1,27 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Manifests base del DevOps Portal Frontend (SPA en nginx).
+# Los overlays (dev/qa/prod) sobrescriben namespace, host del Ingress
+# y réplicas. El tag de imagen lo inyecta el pipeline.
+
+resources:
+  - deployment.yaml
+  - service.yaml
+  - ingress.yaml
+
+# Labels estándar recomendados por Kubernetes
+# (includeSelectors: false → no se agregan al selector del Deployment,
+#  que es inmutable; sí se agregan a metadata.labels de todos los recursos).
+labels:
+  - includeSelectors: false
+    pairs:
+      app.kubernetes.io/name: serviceportal-frontend
+      app.kubernetes.io/managed-by: kustomize
+
+# Pin de la imagen — el pipeline reemplaza el 'newTag' con el IMAGE_TAG real
+# via: kustomize edit set image serviceportal-frontend=<ECR_REGISTRY>/serviceportal-frontend:${IMAGE_TAG}
+images:
+  - name: serviceportal-frontend
+    newName: serviceportal-frontend
+    newTag: placeholder

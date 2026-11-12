@@ -1,0 +1,27 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: prod-namespace
+namePrefix: prod-
+
+labels:
+  - includeSelectors: false
+    pairs:
+      environment: production
+
+resources:
+  - ../../base
+
+patches:
+  - path: deployment-patch.yaml
+    target:
+      kind: Deployment
+      name: serviceportal-frontend
+  - path: ingress-patch.yaml
+    target:
+      kind: Ingress
+      name: serviceportal-frontend
+
+replicas:
+  - name: serviceportal-frontend
+    count: 3

@@ -1,0 +1,57 @@
+# Deployment del frontend (nginx sirviendo SPA).
+# Puerto: 80 (viene del Dockerfile, EXPOSE 80).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: serviceportal-frontend
+  labels:
+    app: serviceportal-frontend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: serviceportal-frontend
+  template:
+    metadata:
+      labels:
+        app: serviceportal-frontend
+    spec:
+      containers:
+        - name: serviceportal-frontend
+          # Placeholder — el pipeline reescribe el tag real via
+          # `kustomize edit set image serviceportal-frontend=<ECR>/serviceportal-frontend:<TAG>`
+          # (ver sección `images:` en base/kustomization.yaml).
+          image: serviceportal-frontend:placeholder
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 80
+          env:
+            # Nombre del Service del backend en el mismo namespace.
+            # El overlay puede ajustarlo si cambia el namePrefix.
+            - name: BACKEND_HOST
+              value: "dev-serviceportal-backend"
+            # Puerto del Service del backend (Service escucha en 80 → targetPort 3000)
+            - name: BACKEND_PORT
+              value: "80"
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "64Mi"
+            limits:
+              cpu: "150m"
+              memory: "128Mi"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+      imagePullSecrets:
+        - name: ecr-registry-secret

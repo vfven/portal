@@ -1,0 +1,16 @@
+# Service ClusterIP — el Ingress lo apunta por nombre.
+# port=80 → el Ingress envía el tráfico a este puerto
+# targetPort=http → mapea al puerto 80 del container (nginx)
+apiVersion: v1
+kind: Service
+metadata:
+  name: serviceportal-frontend
+spec:
+  type: ClusterIP
+  selector:
+    app: serviceportal-frontend
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+      protocol: TCP

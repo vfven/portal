@@ -1,0 +1,640 @@
+================================================================================
+GUÍA DE ANCHORS DEL PIPELINE — gfb-serviceportal-frontend
+================================================================================
+Última actualización: 2026-06-25
+
+Esta guía documenta cada anchor (step reusable) del archivo
+bitbucket-pipelines.yml: qué hace, qué variables necesita y DÓNDE
+configurarlas.
+
+CONVENCIONES DE ORIGEN DE VARIABLES
+-----------------------------------
+[ENV-FILE]    → Archivo .env en raíz del repo del frontend (versionado)
+[ENV-DEV]     → Archivo .env.development (versionado)
+[ENV-PROD]    → Archivo .env.production (versionado)
+[BB-VAR]      → Bitbucket Repository Variables (Settings → Repository variables)
+[BB-VAR-SEC]  → Bitbucket Repository Variables, marcada como Secured
+[BB-WS-VAR]   → Bitbucket Workspace Variables (heredada a todos los repos)
+[VAULT]       → HashiCorp Vault (cargada por load-env.sh)
+[BB-AUTO]     → Inyectada por Bitbucket Pipelines automáticamente
+[OPCIONAL]    → Si no se define, el script hace SKIP (no falla el pipeline)
+[REQUERIDA]   → Si no se define, el script FALLA con CONFIG_ERROR (código 11)
+
+ÍCONO EN COLUMNA "Fall si falta":
+SI  = falla el step (require_var)
+NO  = hace SKIP graceful (skip_if_missing) o on-fail:ignore
+
+
+
+================================================================================
+1) init-submodule
+================================================================================
+Qué hace:
+  Inicializa el submódulo `infra-cicd-tools/` con el SHA pinned en el
+  repo padre. Garantiza que los scripts de level5/ estén disponibles
+  para todos los steps siguientes (los publica como artifacts).
+
+Comandos:
+  git submodule update --init --recursive --remote --force
+  ls -la infra-cicd-tools/scripts/level5/
+
+Variables: ninguna.
+Falla si: el submódulo no está accesible (permisos git, repo borrado).
+
+
+
+================================================================================
+2) load-env
+================================================================================
+Qué hace:
+  Ejecuta `infra-cicd-tools/scripts/utils/load-env.sh` (el script
+  existente, NO el de level5). Carga .env + .env.<environment> y, si
+  está configurado, hace autenticación en Vault y exporta secretos.
+  Genera `export_vars.sh` que TODOS los demás steps cargan con
+  `source export_vars.sh`.
+
+Variables:
+  ┌──────────────────┬─────────────┬───────────┬──────────┐
+  │ Variable         │ Origen      │ Fall si   │ Default  │
+  ├──────────────────┼─────────────┼───────────┼──────────┤
+  │ ENVIRONMENT      │ [BB-AUTO]   │ NO        │ develop. │
+  │ VAULT_ADDR       │ [BB-WS-VAR] │ NO (skip) │ —        │
+  │ VAULT_NAMESPACE  │ [BB-WS-VAR] │ NO (skip) │ —        │
+  │ ROLE_ID          │ [BB-VAR-SEC]│ NO (skip) │ —        │
+  │ SECRET_ID        │ [BB-VAR-SEC]│ NO (skip) │ —        │
+  └──────────────────┴─────────────┴───────────┴──────────┘
+
+
+
+================================================================================
+3) lint-commits
+================================================================================
+Qué hace:
+  Valida que los commits del PR sigan Conventional Commits:
+    <type>(<scope>): <subject>
+  Tipos permitidos: feat, fix, docs, style, refactor, perf, test,
+                    build, ci, chore, revert.
+  En PRs compara contra la rama destino; en push directo, los últimos 10.
+
+Variables:
+  ┌─────────────────────────────────┬───────────┐
+  │ Variable                        │ Origen    │
+  ├─────────────────────────────────┼───────────┤
+  │ BITBUCKET_PR_DESTINATION_BRANCH │ [BB-AUTO] │
+  └─────────────────────────────────┴───────────┘
+
+Falla si: alguno de los commits del rango NO cumple el patrón.
+
+
+
+================================================================================
+4) sast-sonarqube
+================================================================================
+Qué hace:
+  Ejecuta SonarQube Scanner contra el código fuente. Reporta a la
+  instancia configurada y espera Quality Gate (timeout 5 min). Si el
+  proyecto no aprueba el gate, falla el pipeline.
+
+Variables:
+  ┌────────────────────┬─────────────┬──────────┬─────────────────┐
+  │ Variable           │ Origen      │ Fall si  │ Notas           │
+  ├────────────────────┼─────────────┼──────────┼─────────────────┤
+  │ SONAR_HOST_URL     │ [BB-VAR]    │ NO (skip)│ https://…       │
+  │ SONAR_TOKEN        │ [BB-VAR-SEC]│ NO (skip)│ user token Sonar│
+  │ SONAR_PROJECT_KEY  │ [BB-VAR]    │ NO       │ default APP_NAME│
+  │ SONAR_SOURCES      │ [ENV-FILE]  │ NO       │ default "src"   │
+  │ SONAR_TESTS        │ [ENV-FILE]  │ NO       │ default "tests" │
+  │ SONAR_LCOV         │ [ENV-FILE]  │ NO       │ coverage/lcov…  │
+  │ APP_NAME           │ [ENV-FILE]  │ —        │ serviceportal-… │
+  │ IMAGE_TAG          │ [BB-AUTO]   │ —        │ build number    │
+  └────────────────────┴─────────────┴──────────┴─────────────────┘
+
+Pre-requisito infra:
+  • SonarQube corriendo y accesible desde Bitbucket Cloud
+  • Proyecto creado con la key SONAR_PROJECT_KEY
+  • Token con permisos "Execute Analysis" sobre ese proyecto
+
+
+
+================================================================================
+5) sca-trivy-fs
+================================================================================
+Qué hace:
+  Software Composition Analysis (SCA): escanea el filesystem (no la
+  imagen) buscando CVEs en dependencias declaradas (package.json,
+  go.mod, requirements.txt, etc.) + secretos + misconfigs.
+
+Variables:
+  ┌───────────────────────────┬──────────┬──────────────────────────┐
+  │ Variable                  │ Origen   │ Default                  │
+  ├───────────────────────────┼──────────┼──────────────────────────┤
+  │ CRITICAL_CVE_THRESHOLD    │ YAML var │ 0   (cualquier CRIT fail)│
+  │ HIGH_CVE_THRESHOLD        │ YAML var │ 5                        │
+  └───────────────────────────┴──────────┴──────────────────────────┘
+
+Falla si: CVEs CRITICAL > umbral O HIGH > umbral.
+Genera: sca-trivy-fs.json (artifact)
+
+
+
+================================================================================
+6) secret-scan
+================================================================================
+Qué hace:
+  Ejecuta gitleaks sobre todo el repo + historia git. Detecta
+  AWS keys, JWT, GitHub tokens, etc. hardcoded.
+
+Variables: ninguna requerida.
+
+Falla si: encuentra cualquier secreto.
+Genera: gitleaks-report.json (artifact, con valores redactados)
+
+
+
+================================================================================
+7) license-check
+================================================================================
+Qué hace:
+  Lista licencias de dependencias de producción (npm) y falla si
+  alguna está en la lista negra. Skip si no hay package.json.
+
+Variables:
+  ┌────────────────────────┬──────────┬──────────────────────────────┐
+  │ Variable               │ Origen   │ Default                      │
+  ├────────────────────────┼──────────┼──────────────────────────────┤
+  │ PROHIBITED_LICENSES    │ [BB-VAR] │ GPL-2.0;GPL-3.0;AGPL-1.0;…   │
+  └────────────────────────┴──────────┴──────────────────────────────┘
+
+Falla si: alguna dep tiene licencia en PROHIBITED_LICENSES.
+
+
+
+================================================================================
+8) unit-tests + coverage-gate
+================================================================================
+Qué hace:
+  Ejecuta `npm test -- --coverage`. Si package.json no tiene script
+  "test", hace SKIP. Después corre coverage-gate.sh que falla si
+  cualquier métrica (lines/statements/functions/branches) < umbral.
+
+Variables:
+  ┌────────────────────────┬──────────┬──────────────────────┐
+  │ Variable               │ Origen   │ Default              │
+  ├────────────────────────┼──────────┼──────────────────────┤
+  │ COVERAGE_THRESHOLD     │ YAML var │ 10 (sube gradualmente│
+  │                        │          │  a 70)               │
+  └────────────────────────┴──────────┴──────────────────────┘
+
+Pre-requisito código:
+  • package.json con "scripts.test" definido
+  • devDependency: jest (o equivalente que genere coverage/lcov.info)
+
+Genera: coverage/lcov.info, coverage/coverage-summary.json
+
+
+
+================================================================================
+9) integration-tests
+================================================================================
+Qué hace:
+  Levanta `docker-compose.test.yml`, espera servicios saludables,
+  corre `npm run test:integration`, recoge logs, tira el stack.
+  SKIP si docker-compose.test.yml no existe o package.json no
+  define "test:integration".
+
+Variables: ninguna requerida.
+
+
+
+================================================================================
+10) build-image
+================================================================================
+Qué hace:
+  Build con Docker BuildKit + cache de registry. Aplica labels OCI
+  estándar (revision, version, source, vendor). Exporta la imagen
+  como docker.tar artifact.
+
+Variables:
+  ┌──────────────┬───────────────────┬────────┐
+  │ Variable     │ Origen            │ Fall si│
+  ├──────────────┼───────────────────┼────────┤
+  │ APP_NAME     │ [ENV-FILE]        │ SI     │
+  │ IMAGE_TAG    │ [BB-AUTO]         │ NO     │
+  │ GIT_SHA      │ [BB-AUTO]         │ NO     │
+  │ ECR_REGISTRY │ [genera en step 13]│ NO    │ (cache opcional)
+  └──────────────┴───────────────────┴────────┘
+
+Pre-requisito código:
+  • Dockerfile en raíz del repo
+
+
+
+================================================================================
+11) sbom-generate
+================================================================================
+Qué hace:
+  Genera Software Bill of Materials (SBOM) en SPDX 2.3 y CycloneDX
+  1.5 usando syft. Lista todos los paquetes incluidos en la imagen.
+
+Variables:
+  ┌────────────┬────────────────┐
+  │ Variable   │ Origen         │
+  ├────────────┼────────────────┤
+  │ APP_NAME   │ [ENV-FILE]     │
+  │ IMAGE_TAG  │ [BB-AUTO]      │
+  └────────────┴────────────────┘
+
+Genera: sbom.spdx.json, sbom.cyclonedx.json (artifacts)
+
+
+
+================================================================================
+12) image-scan-trivy
+================================================================================
+Qué hace:
+  Scan de la imagen Docker contra DB de CVEs. Solo reporta CVEs
+  "fixed" (--ignore-unfixed) para evitar ruido.
+
+Variables: mismas que sca-trivy-fs (CRITICAL/HIGH_CVE_THRESHOLD).
+
+Falla si: CVEs en imagen exceden umbrales.
+
+
+
+================================================================================
+13) push-to-ecr
+================================================================================
+Qué hace:
+  Login a AWS ECR, crea el repo si no existe, hace docker push con
+  3 tags: IMAGE_TAG, sha-<7chars>, y latest (solo en dev). Genera
+  ecr-push-info.txt que exporta ECR_REGISTRY/IMAGE_FULL/IMAGE_DIGEST
+  para steps siguientes.
+
+Variables:
+  ┌─────────────────────────┬─────────────┬────────┬──────────────┐
+  │ Variable                │ Origen      │ Fall si│ Notas        │
+  ├─────────────────────────┼─────────────┼────────┼──────────────┤
+  │ AWS_ACCESS_KEY_ID       │ [BB-WS-VAR] │ SI     │ Secured      │
+  │ AWS_SECRET_ACCESS_KEY   │ [BB-WS-VAR] │ SI     │ Secured      │
+  │ EKS_AWS_REGION          │ [ENV-FILE]  │ SI     │ us-east-1    │
+  │ EKS_ECR_REPO_NAME       │ [ENV-FILE]  │ SI     │ servicep-…   │
+  │ APP_NAME                │ [ENV-FILE]  │ —      │              │
+  │ IMAGE_TAG               │ [BB-AUTO]   │ —      │              │
+  │ ECR_TAG_MUTABILITY      │ [BB-VAR]    │ NO     │ MUTABLE      │
+  └─────────────────────────┴─────────────┴────────┴──────────────┘
+
+Pre-requisito AWS:
+  • IAM user con policy: ecr:GetAuthorizationToken, ecr:CreateRepository,
+    ecr:BatchCheckLayerAvailability, ecr:PutImage, ecr:InitiateLayerUpload,
+    ecr:UploadLayerPart, ecr:CompleteLayerUpload, ecr:DescribeRepositories
+  • La región de ECR debe coincidir con EKS_AWS_REGION
+
+
+
+================================================================================
+14) sign-image
+================================================================================
+Qué hace:
+  Firma la imagen con cosign keyless usando OIDC token de Bitbucket.
+  Sube la firma a Rekor (transparencia pública Sigstore). Si existe
+  sbom.cyclonedx.json, además adjunta el SBOM como attestation.
+
+Variables:
+  ┌──────────────────────────────┬──────────┬──────────────────────┐
+  │ Variable                     │ Origen   │ Fall si              │
+  ├──────────────────────────────┼──────────┼──────────────────────┤
+  │ BITBUCKET_STEP_OIDC_TOKEN    │ [BB-AUTO]│ NO (skip) — requiere │
+  │                              │          │ oidc: true en step   │
+  │ ECR_REGISTRY                 │ ecr-push…│ NO (skip)            │
+  │ APP_NAME, IMAGE_TAG          │ [ENV/AUTO]│ —                   │
+  └──────────────────────────────┴──────────┴──────────────────────┘
+
+Está marcado on-fail: ignore — no rompe el pipeline si cosign falla.
+Pre-requisito: el step tiene `oidc: true` (ya configurado).
+
+
+
+================================================================================
+15) policy-check
+================================================================================
+Qué hace:
+  Renderiza manifests Kubernetes con kustomize (kubernetes/overlays/dev
+  por defecto), valida schema con kubeval, y aplica políticas OPA
+  (conftest) contra reglas en
+  infra-cicd-tools/scripts/level5/deploy/policies/security.rego.
+
+Variables:
+  ┌──────────────────┬──────────┬──────────────────────────────────┐
+  │ Variable         │ Origen   │ Default                          │
+  ├──────────────────┼──────────┼──────────────────────────────────┤
+  │ OVERLAY          │ YAML/env │ overlays/dev                     │
+  │ KUSTOMIZE_DIR    │ env      │ kubernetes/${OVERLAY}            │
+  │ POLICIES_DIR     │ env      │ (level5/deploy/policies)         │
+  └──────────────────┴──────────┴──────────────────────────────────┘
+
+Falla si: schema inválido O alguna política deny dispara.
+Genera: manifests-rendered/all.yaml
+
+
+
+================================================================================
+16) gitops-update-dev / gitops-update-prod
+================================================================================
+Qué hace:
+  Clona el repo argocd-config, modifica
+  apps/${APP_NAME}/overlays/${ENV}/kustomization.yaml con el nuevo
+  tag de imagen, commit + push. ArgoCD detecta el cambio y sincroniza.
+
+Variables:
+  ┌────────────────┬─────────────┬───────────┬──────────────────────┐
+  │ Variable       │ Origen      │ Fall si   │ Notas                │
+  ├────────────────┼─────────────┼───────────┼──────────────────────┤
+  │ GITOPS_REPO    │ [BB-VAR]    │ NO (skip) │ bancobase/argocd-…   │
+  │ GITOPS_TOKEN   │ [BB-VAR-SEC]│ NO (skip) │ Bitbucket app pass   │
+  │ APP_NAME       │ [ENV-FILE]  │ —         │                      │
+  │ IMAGE_FULL     │ ecr-push…   │ —         │                      │
+  │ IMAGE_DIGEST   │ ecr-push…   │ —         │                      │
+  │ GIT_SHA, BUILD_URL │ [BB-AUTO]│ —        │                      │
+  └────────────────┴─────────────┴───────────┴──────────────────────┘
+
+Pre-requisito infra:
+  • Repo bancobase/argocd-config creado en Bitbucket
+  • Estructura: apps/${APP_NAME}/overlays/{dev,prod}/kustomization.yaml
+  • App Password en Bitbucket con permiso repository:write sobre ese repo
+
+
+
+================================================================================
+17) argocd-sync
+================================================================================
+Qué hace:
+  Trigger inmediato de sync en ArgoCD (en vez de esperar el polling
+  cada 3 min) y wait hasta que la Application esté Healthy + Synced
+  (timeout 5 min).
+
+Variables:
+  ┌────────────────────┬─────────────┬───────────┐
+  │ Variable           │ Origen      │ Fall si   │
+  ├────────────────────┼─────────────┼───────────┤
+  │ ARGOCD_SERVER      │ [BB-VAR]    │ NO (skip) │
+  │ ARGOCD_AUTH_TOKEN  │ [BB-VAR-SEC]│ NO (skip) │
+  │ APP_NAME           │ [ENV-FILE]  │ —         │
+  │ ENVIRONMENT        │ [BB-AUTO]   │ —         │
+  └────────────────────┴─────────────┴───────────┘
+
+on-fail: ignore — opcional hasta que ArgoCD esté operativo.
+
+Pre-requisito ArgoCD:
+  • Cuenta service-account "ci-pipeline" en argocd-cm
+  • Permisos en argocd-rbac-cm: sync + get sobre applications
+  • Application CRD aplicada al cluster antes del primer run
+
+
+
+================================================================================
+18) smoke-tests
+================================================================================
+Qué hace:
+  Probes HTTP contra la app desplegada:
+    GET /health           → espera 200
+    GET /                 → espera 200
+    GET /<random-404>     → espera 404
+  Si CUALQUIERA falla y existe GITOPS_REPO, dispara rollback
+  automático (revierte el último commit de bump en GitOps).
+
+Variables:
+  ┌────────────────┬──────────┬───────────┬────────────────────────┐
+  │ Variable       │ Origen   │ Fall si   │ Notas                  │
+  ├────────────────┼──────────┼───────────┼────────────────────────┤
+  │ SMOKE_BASE_URL │ [BB-VAR] │ NO (skip) │ Override total         │
+  │ APP_URL        │ [ENV]    │ NO (skip) │ Alternativa            │
+  │ DOMAIN         │ [ENV]    │ NO        │ Construye URL https:// │
+  │ HEALTH_PATH    │ [ENV]    │ NO        │ default /health        │
+  └────────────────┴──────────┴───────────┴────────────────────────┘
+
+  URL final = SMOKE_BASE_URL ?? APP_URL ?? "https://${APP_NAME}.${DOMAIN}"
+
+
+
+================================================================================
+19) dast-zap
+================================================================================
+Qué hace:
+  OWASP ZAP Baseline scan (passive) contra la URL del entorno.
+  Reporta alertas Low/Medium/High. Falla solo si encuentra High.
+
+Variables: misma URL que smoke-tests (SMOKE_BASE_URL/APP_URL/DOMAIN).
+on-fail: ignore — solo emite warning.
+Genera: zap-report.html (artifact navegable)
+
+
+
+================================================================================
+20) perf-baseline
+================================================================================
+Qué hace:
+  Carga progresiva con k6 (0 → 10 → 20 VUs, 1m50s total) contra
+  ${SMOKE_BASE_URL}${HEALTH_PATH}. Aplica SLO:
+    p95 latencia < P95_SLO_MS
+    error rate < ERROR_RATE_SLO
+
+Variables:
+  ┌────────────────────┬──────────┬─────────┐
+  │ Variable           │ Origen   │ Default │
+  ├────────────────────┼──────────┼─────────┤
+  │ SMOKE_BASE_URL/…   │ [BB-VAR] │ —       │
+  │ P95_SLO_MS         │ [BB-VAR] │ 500     │
+  │ ERROR_RATE_SLO     │ [BB-VAR] │ 0.01    │
+  │ HEALTH_PATH        │ [ENV]    │ /health │
+  └────────────────────┴──────────┴─────────┘
+
+on-fail: ignore. Genera: k6-summary.json
+
+
+
+================================================================================
+21) rollback
+================================================================================
+Qué hace:
+  Revierte el último commit de "bump" en el repo GitOps para
+  ${APP_NAME}. Fuerza sync inmediato en ArgoCD. Se llama
+  automáticamente desde smoke-tests al fallar, o manualmente vía
+  custom pipeline `rollback-dev` / `rollback-prod`.
+
+Variables:
+  ┌────────────────┬─────────────┬────────┐
+  │ Variable       │ Origen      │ Fall si│
+  ├────────────────┼─────────────┼────────┤
+  │ GITOPS_REPO    │ [BB-VAR]    │ SI     │
+  │ GITOPS_TOKEN   │ [BB-VAR-SEC]│ SI     │
+  │ APP_NAME       │ [ENV-FILE]  │ —      │
+  └────────────────┴─────────────┴────────┘
+
+
+
+================================================================================
+22) deploy-marker
+================================================================================
+Qué hace:
+  Crea un marcador de deployment en Grafana (annotation) y/o
+  Datadog (event). Útil para correlacionar incidentes con releases.
+
+Variables:
+  ┌──────────────────┬─────────────┬───────────┐
+  │ Variable         │ Origen      │ Fall si   │
+  ├──────────────────┼─────────────┼───────────┤
+  │ GRAFANA_URL      │ [BB-VAR]    │ NO (skip) │
+  │ GRAFANA_TOKEN    │ [BB-VAR-SEC]│ NO (skip) │
+  │ DATADOG_API_KEY  │ [BB-VAR-SEC]│ NO (skip) │
+  └──────────────────┴─────────────┴───────────┘
+
+on-fail: ignore.
+
+
+
+================================================================================
+23) jira-comment
+================================================================================
+Qué hace:
+  Detecta el Jira issue key del branch (ej "DV-123") o del commit
+  message y publica un comentario rico (tabla ADF) con métricas:
+  coverage, CVE crit/high, latencia p95, link al build.
+
+Variables:
+  ┌────────────────────┬─────────────┬───────────┐
+  │ Variable           │ Origen      │ Fall si   │
+  ├────────────────────┼─────────────┼───────────┤
+  │ JIRA_USERNAME      │ [BB-WS-VAR] │ NO (skip) │
+  │ JIRA_API_TOKEN     │ [BB-WS-VAR-SEC] │ NO    │
+  │ JIRA_DOMAIN        │ [BB-VAR]    │ NO (skip) │
+  └────────────────────┴─────────────┴───────────┘
+
+  JIRA_DOMAIN ej: https://bancobase.atlassian.net
+
+on-fail: ignore.
+
+
+
+================================================================================
+24) chat-notify
+================================================================================
+Qué hace:
+  Envía tarjeta a Google Chat con status del build (SUCCESS/FAILURE),
+  versión, branch, commit, link.
+
+Variables:
+  ┌────────────────┬─────────────┬───────────┬────────────────────┐
+  │ Variable       │ Origen      │ Fall si   │ Notas              │
+  ├────────────────┼─────────────┼───────────┼────────────────────┤
+  │ GCHAT_WEBHOOK  │ [BB-VAR-SEC]│ NO (skip) │ ⚠️ MIGRAR DESDE    │
+  │                │             │           │ EL TOKEN HARDCODED │
+  └────────────────┴─────────────┴───────────┴────────────────────┘
+
+ACCIÓN URGENTE: el pipeline ANTERIOR tenía el webhook de Google Chat
+hardcoded en el YAML. Recomendación: mover el valor a Bitbucket
+Repository Variables como GCHAT_WEBHOOK (Secured), y rotar el token.
+
+
+
+================================================================================
+25) verify-signature (solo en release/*)
+================================================================================
+Qué hace:
+  Verifica con cosign que la imagen tiene una firma válida emitida
+  por el OIDC issuer de tu workspace Bitbucket.
+
+Variables:
+  ┌────────────────┬──────────┬───────────┐
+  │ Variable       │ Origen   │ Fall si   │
+  ├────────────────┼──────────┼───────────┤
+  │ ECR_REGISTRY   │ ecr-push…│ NO (skip) │
+  └────────────────┴──────────┴───────────┘
+
+Falla si: la imagen no está firmada o la identidad no coincide.
+
+
+
+================================================================================
+RESUMEN: VARIABLES POR ORIGEN
+================================================================================
+
+ARCHIVO .env (raíz del repo, ya existe):
+  APP_NAME=serviceportal-frontend
+  APP_PORT=80
+  APP_VERSION=1.0.0
+  DOMAIN=...
+  JIRA_PROJECT_KEY=DV
+  EKS_AWS_REGION=us-east-1                  ← AGREGAR
+  EKS_ECR_REPO_NAME=serviceportal-frontend  ← AGREGAR
+  SONAR_SOURCES=src                         ← AGREGAR (opcional)
+  HEALTH_PATH=/health                       ← AGREGAR (opcional)
+
+
+BITBUCKET REPOSITORY VARIABLES (Settings → Repository variables):
+  Secured = sí
+  ─────────────────────────────────────────────
+  GCHAT_WEBHOOK              [Secured]  ← MIGRAR YA
+  SONAR_HOST_URL                        ← cuando exista Sonar
+  SONAR_TOKEN                [Secured]
+  SONAR_PROJECT_KEY
+  GITOPS_REPO                           ← cuando exista repo argocd
+  GITOPS_TOKEN               [Secured]
+  ARGOCD_SERVER                         ← cuando ArgoCD esté listo
+  ARGOCD_AUTH_TOKEN          [Secured]
+  GRAFANA_URL                           ← cuando se quiera marker
+  GRAFANA_TOKEN              [Secured]
+  DATADOG_API_KEY            [Secured]  ← solo si usan Datadog
+  SMOKE_BASE_URL                        ← cuando haya URL pública
+  P95_SLO_MS                            ← opcional
+  ERROR_RATE_SLO                        ← opcional
+  PROHIBITED_LICENSES                   ← opcional, ya tiene default
+
+
+BITBUCKET WORKSPACE VARIABLES (Workspace → Variables) — se heredan:
+  AWS_ACCESS_KEY_ID          [Secured]
+  AWS_SECRET_ACCESS_KEY      [Secured]
+  VAULT_ADDR
+  VAULT_NAMESPACE
+  ROLE_ID                    [Secured]
+  SECRET_ID                  [Secured]
+  JIRA_USERNAME
+  JIRA_API_TOKEN             [Secured]
+  JIRA_DOMAIN
+
+
+VAULT (vía load-env.sh):
+  Cualquier secret en kv/${ENVIRONMENT}/${APP_NAME}/* se exporta como
+  variable. Ver scripts/utils/load-env.sh para la estructura exacta.
+
+
+================================================================================
+SI UN STEP FALLA, ¿CÓMO DEBUGGEAR?
+================================================================================
+
+1) Mira el log del step. Los scripts emiten:
+   "⏭️  SKIP — variables no configuradas: VAR1 VAR2"
+   → Significa que el step se saltó (NO es un fallo).
+
+2) Si dice "Variable requerida no definida: X":
+   → Es un require_var. Configurar X según la tabla del step.
+
+3) Si dice "ERROR [CONFIG_ERROR]: ..." (exit 11):
+   → Falta variable obligatoria.
+
+4) Si dice "ERROR [NETWORK_ERROR]: ..." (exit 12):
+   → Endpoint no responde (Sonar/Vault/ArgoCD caído o URL mal).
+
+5) Si dice "Gate de seguridad BLOQUEADO":
+   → CVEs/licencias/secrets sobre umbral. Revisar artifacts JSON.
+
+6) Si dice "Quality Gate FAILED":
+   → SonarQube rechazó. Revisar dashboard de Sonar.
+
+CÓDIGOS DE EXIT (de error-handling.sh):
+  10  VALIDATION_ERROR
+  11  CONFIG_ERROR        ← Variable faltante
+  12  NETWORK_ERROR       ← Endpoint inaccesible
+  13  PERMISSION_ERROR
+  14  RESOURCE_ERROR
+  15  TIMEOUT_ERROR
+  99  UNKNOWN_ERROR
